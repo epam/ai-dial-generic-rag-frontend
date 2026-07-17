@@ -35,5 +35,9 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "postcss": "^8.5.19",
+    "dompurify": "^3.4.12"
   }
 }

@@ -29,9 +29,18 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## When working with @epam/ai-dial-ui-kit
 
-The `ai-dial-ui-kit` MCP server (tools `searchEntity` / `getEntityDetails`) is the preferred way to
-discover components and exact prop signatures. **If that MCP server is not available in your
-session**, read the type definitions directly from
+The `ai-dial-ui-kit` MCP server enables you to discover components, read exact prop signatures,
+access code examples, and understand design tokens and available utilities.
+
+Use these two tools for all UI kit discovery and documentation needs: `searchEntity(entity, query?)`
+and `getEntityDetails(entity, name?)`. If you need to look up **ANYTHING** about the ui kit, use the
+MCP server.
+
+> **Note:** Do not use `grep`, `glob`, `find`, or similar file system tools to discover components.
+> The MCP tools provide accurate, structured metadata. File system searches miss examples, miss
+> type information, and are slower.
+
+**If the MCP server is not available in your session**, read the type definitions directly from
 `node_modules/@epam/ai-dial-ui-kit/dist/src/**/*.d.ts` instead.
 
 ## Commands reference

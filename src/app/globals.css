@@ -1,6 +1,16 @@
 @import 'tailwindcss';
+@import '@epam/ai-dial-ui-kit/styles.css';
 
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: dark;
+  background-color: #131722;
+}
+
+body {
+  color: #e7e9ec;
 }

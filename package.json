@@ -2,9 +2,9 @@
   "name": "ai-dial-generic-rag-frontend",
   "version": "0.0.0",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 4600",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 4600",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "format": "prettier --check .",
@@ -14,6 +14,7 @@
   "dependencies": {
     "@epam/ai-dial-ui-kit": "^0.12.0-dev.34",
     "next": "16.2.10",
+    "next-auth": "^4.24.12",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

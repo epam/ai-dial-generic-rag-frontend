@@ -3,8 +3,11 @@ import type { NextRequest } from 'next/server';
 
 import { defaultLocale } from '@/constants/locales';
 
-// Next 16 renamed `middleware` to `proxy`. Redirects `/` to the default locale
-// and sets the CSP frame-ancestors that lets DIAL Admin embed this app.
+/**
+ * Proxy (Next 16's renamed `middleware`). Redirects `/` to the default locale,
+ * and sets the CSP `frame-ancestors` header so DIAL Admin can frame this app
+ * (via `ALLOWED_FRAME_ANCESTORS`; defaults to `'none'`).
+ */
 export function proxy(request: NextRequest): NextResponse {
   if (request.nextUrl.pathname === '/') {
     const url = request.nextUrl.clone();
@@ -12,15 +15,18 @@ export function proxy(request: NextRequest): NextResponse {
     return NextResponse.redirect(url);
   }
 
-  const cspHeader = `frame-ancestors ${process.env.ALLOWED_FRAME_ANCESTORS ?? "'none'"};`;
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('Content-Security-Policy', cspHeader);
-
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
-  response.headers.set('Content-Security-Policy', cspHeader);
+  const response = NextResponse.next();
+  const allowedFrameAncestors = process.env.ALLOWED_FRAME_ANCESTORS || "'none'";
+  response.headers.set(
+    'Content-Security-Policy',
+    `frame-ancestors ${allowedFrameAncestors}`,
+  );
   return response;
 }
 
+/** Runs on every route except API, Next internals, and metadata files. */
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
+  ],
 };

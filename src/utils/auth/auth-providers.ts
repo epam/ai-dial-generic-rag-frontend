@@ -6,11 +6,9 @@ import { Provider, TokenEndpointHandler } from 'next-auth/providers/index';
 import KeycloakProvider from 'next-auth/providers/keycloak';
 import OktaProvider from 'next-auth/providers/okta';
 
-import { createLogger } from '@/utils/logger';
+import { authLogger as logger } from '@/utils/auth/logger';
 
 import NextClient from './nextauth-client';
-
-const logger = createLogger('auth');
 
 export const tokenConfig: TokenEndpointHandler = {
   request: async (context) => {

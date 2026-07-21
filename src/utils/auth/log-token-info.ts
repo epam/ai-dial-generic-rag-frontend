@@ -1,8 +1,6 @@
 import { JWT } from 'next-auth/jwt';
 
-import { createLogger } from '@/utils/logger';
-
-const logger = createLogger('auth');
+import { authLogger as logger } from '@/utils/auth/logger';
 
 export const logTokenExpiration = (
   token: JWT | undefined | null,

@@ -29,6 +29,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Tests**: place `*.test.ts`/`*.test.tsx` files in a `__tests__` subfolder next to the code they
   cover (e.g. `src/utils/embedding/__tests__/apply-theme.test.ts`), not colocated directly beside
   the source file. Import the code under test via the `@/*` alias, not a relative path.
+- **Hooks**: name hook files kebab-case (e.g. `src/hooks/use-auth.ts`,
+  `src/hooks/use-embedding-bridge.ts`) — the exported hook itself stays camelCase (`useAuth`,
+  `useEmbeddingBridge`) per React convention; only the filename is kebab-case, consistent with the
+  rest of `src/`.
+- **Logging**: always use `createLogger(scope)` from `@/utils/logger`, never raw `console.*`.
+  Create one shared scoped logger per domain and import it everywhere in that domain, rather than
+  calling `createLogger` again in each file (e.g. `utils/auth/logger.ts` exports `authLogger`,
+  reused by every file under `utils/auth/`).
+- **Constants**: domain-wide constants that are meaningful outside their owning file go in
+  `src/constants/<domain>.ts` (e.g. `src/constants/auth.ts`), not colocated with the logic that
+  uses them.
 
 ## When working with @epam/ai-dial-ui-kit
 

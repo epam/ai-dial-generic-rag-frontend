@@ -4,8 +4,8 @@ import { ChatVisualizerConnector } from '@epam/ai-dial-chat-visualizer-connector
 import { VisualizerConnectorEvents } from '@epam/ai-dial-shared';
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useEmbeddingContext } from '@/context/EmbeddingContext';
 import { applyTheme } from '@/utils/embedding/apply-theme';
-import { storeEmbeddingParams } from '@/utils/embedding/embedding-context';
 import { resolveParentOrigin } from '@/utils/embedding/resolve-parent-origin';
 import { createLogger } from '@/utils/logger';
 
@@ -24,12 +24,13 @@ export function useEmbeddingBridge(): void {
   const theme = searchParams.get('theme');
   const authProvider = searchParams.get('authProvider');
   const id = searchParams.get('id');
+  const { setEmbeddingParams } = useEmbeddingContext();
 
   useEffect(() => {
     applyTheme(theme);
-    storeEmbeddingParams({ theme, authProvider, id });
+    setEmbeddingParams({ theme, authProvider, id });
     logger.info('applied embedding params', { theme, authProvider, id });
-  }, [theme, authProvider, id]);
+  }, [theme, authProvider, id, setEmbeddingParams]);
 
   useEffect(() => {
     // Debug-only visibility into every inbound postMessage, regardless of origin or

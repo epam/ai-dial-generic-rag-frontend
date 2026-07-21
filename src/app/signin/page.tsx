@@ -5,8 +5,8 @@ import { signIn, useSession } from 'next-auth/react';
 import { Suspense, useCallback, useEffect } from 'react';
 
 import { defaultLocale } from '@/constants/locales';
-import { AUTH_WINDOW_CLOSE_KEY } from '@/lib/auth/constants';
-import { SessionStatus } from '@/lib/auth/types';
+import { AUTH_WINDOW_CLOSE_KEY } from '@/constants/auth';
+import { SessionStatus } from '@/utils/auth/types';
 
 const SignInFlow = () => {
   const session = useSession();

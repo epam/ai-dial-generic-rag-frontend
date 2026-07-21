@@ -3,7 +3,7 @@ import { ReactNode } from 'react';
 
 import { SignInGate } from '@/components/SignInGate';
 import { locales } from '@/constants/locales';
-import { getIsEnableAuthToggle } from '@/lib/auth/get-auth-toggle';
+import { getIsEnableAuthToggle } from '@/utils/auth/get-auth-toggle';
 
 export default async function LocaleLayout({
   children,

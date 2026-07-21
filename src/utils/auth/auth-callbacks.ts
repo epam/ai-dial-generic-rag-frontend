@@ -7,13 +7,15 @@ import {
 } from 'next-auth';
 import type { TokenSet } from 'openid-client';
 
-import { Token } from '@/lib/auth/types';
-import { errorLog, warnLog, errorObjLog } from '@/lib/logger';
-import { isDefined } from '@/lib/utility';
+import { Token } from '@/utils/auth/types';
+import { createLogger } from '@/utils/logger';
+import { isDefined } from '@/utils/utility';
 
 import { authProviders } from './auth-providers';
 import { logTokenExpiration } from './log-token-info';
 import NextClient, { RefreshToken } from './nextauth-client';
+
+const logger = createLogger('auth');
 
 declare module 'next-auth' {
   interface Session {
@@ -54,7 +56,7 @@ const getUser = (accessToken?: string) => {
     try {
       payload = decodeJwtPayload(accessToken);
     } catch (err) {
-      errorObjLog(err, "Token couldn't be parsed as JWT");
+      logger.error("Token couldn't be parsed as JWT", err);
     }
   }
 
@@ -79,7 +81,7 @@ async function refreshAccessToken(token: Token) {
 
     const client = NextClient.getClient(token.providerId);
     if (!client) {
-      errorLog(
+      logger.error(
         `No client for provider: ${token.providerId}. Sub: ${displayedTokenSub}. Token refresh failed for ${token.userId}`,
       );
       return { ...token, error: 'NoClientForProvider' };
@@ -123,7 +125,7 @@ async function refreshAccessToken(token: Token) {
       throw new Error('Error from auth provider while refreshing token');
     }
     if (!refreshedTokens.refresh_token) {
-      warnLog(
+      logger.warn(
         `Auth provider didn't provide new refresh token. Sub: ${displayedTokenSub}`,
       );
     }
@@ -147,9 +149,9 @@ async function refreshAccessToken(token: Token) {
     });
     return returnToken;
   } catch (error: unknown) {
-    errorObjLog(
-      error,
+    logger.error(
       `Error when refreshing token: ${(error as Error).message}. Sub: ${displayedTokenSub}`,
+      error,
     );
     return { ...token, error: 'RefreshAccessTokenError' };
   }
@@ -261,9 +263,9 @@ export const callbacks: Partial<
 
     const refreshedToken = await refreshAccessToken(options.token as Token);
     if ((refreshedToken as { error?: string }).error) {
-      errorObjLog(
-        (refreshedToken as { error?: string }).error,
+      logger.error(
         'Error during token refresh',
+        (refreshedToken as { error?: string }).error,
       );
     }
     return refreshedToken;

@@ -31,7 +31,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col font-sans">
+      <body className="flex h-full flex-col overflow-hidden font-sans">
         <EmbeddingContextProvider>
           <Suspense fallback={null}>
             <EmbeddingBridge />

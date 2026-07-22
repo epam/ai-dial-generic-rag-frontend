@@ -21,23 +21,19 @@ describe('resolveParentOrigin', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     setAncestorOrigins(undefined);
     setReferrer('');
-    vi.stubEnv('NEXT_PUBLIC_DIAL_ADMIN_URL', '');
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.unstubAllEnvs();
   });
 
   it('prefers ancestorOrigins when present', () => {
     setAncestorOrigins(['https://admin.example.com']);
     setReferrer('https://ignored.example.com');
-    vi.stubEnv(
-      'NEXT_PUBLIC_DIAL_ADMIN_URL',
-      'https://also-ignored.example.com',
-    );
 
-    expect(resolveParentOrigin()).toBe('https://admin.example.com');
+    expect(resolveParentOrigin('https://also-ignored.example.com')).toBe(
+      'https://admin.example.com',
+    );
   });
 
   it('falls back to document.referrer when ancestorOrigins is absent', () => {
@@ -45,16 +41,18 @@ describe('resolveParentOrigin', () => {
     expect(resolveParentOrigin()).toBe('https://admin.example.com');
   });
 
-  it('falls back to the env var when the referrer is malformed', () => {
+  it('falls back to the fallback origin when the referrer is malformed', () => {
     setReferrer('not a url');
-    vi.stubEnv('NEXT_PUBLIC_DIAL_ADMIN_URL', 'https://admin.example.com');
 
-    expect(resolveParentOrigin()).toBe('https://admin.example.com');
+    expect(resolveParentOrigin('https://admin.example.com')).toBe(
+      'https://admin.example.com',
+    );
   });
 
-  it('falls back to the env var when neither ancestorOrigins nor referrer are available', () => {
-    vi.stubEnv('NEXT_PUBLIC_DIAL_ADMIN_URL', 'https://admin.example.com');
-    expect(resolveParentOrigin()).toBe('https://admin.example.com');
+  it('falls back to the fallback origin when neither ancestorOrigins nor referrer are available', () => {
+    expect(resolveParentOrigin('https://admin.example.com')).toBe(
+      'https://admin.example.com',
+    );
   });
 
   it('returns undefined when nothing resolves', () => {

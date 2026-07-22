@@ -9,9 +9,6 @@ import { applyTheme } from '@/utils/embedding/apply-theme';
 import { resolveParentOrigin } from '@/utils/embedding/resolve-parent-origin';
 import { createLogger } from '@/utils/logger';
 
-const DEFAULT_APP_NAME =
-  process.env.NEXT_PUBLIC_DIAL_APPLICATION_NAME || 'Generic RAG';
-
 const logger = createLogger('embedding');
 
 /**
@@ -24,7 +21,13 @@ export function useEmbeddingBridge(): void {
   const theme = searchParams.get('theme');
   const authProvider = searchParams.get('authProvider');
   const id = searchParams.get('id');
-  const { setEmbeddingParams } = useEmbeddingContext();
+  const {
+    setEmbeddingParams,
+    dialAdminUrl,
+    applicationName,
+    registerDirtyStateSender,
+    notifySaveRequested,
+  } = useEmbeddingContext();
 
   useEffect(() => {
     applyTheme(theme);
@@ -49,7 +52,7 @@ export function useEmbeddingBridge(): void {
   }, []);
 
   useEffect(() => {
-    const parentOrigin = resolveParentOrigin();
+    const parentOrigin = resolveParentOrigin(dialAdminUrl);
     if (!parentOrigin) {
       logger.warn(
         'no parent origin resolved, skipping visualizer connector setup',
@@ -61,7 +64,7 @@ export function useEmbeddingBridge(): void {
     // name (`dial:applicationTypeDisplayName`/`scheme.name`) — which one it expects isn't
     // knowable from here, so broadcast the ready handshake under every candidate name.
     const candidateNames = Array.from(
-      new Set([id, DEFAULT_APP_NAME].filter((name): name is string => !!name)),
+      new Set([id, applicationName].filter((name): name is string => !!name)),
     );
 
     logger.info('connecting to parent', { parentOrigin, candidateNames });
@@ -75,6 +78,14 @@ export function useEmbeddingBridge(): void {
           logger.info('received visualizer data from host', {
             visualizerData,
           });
+
+          if (
+            !!visualizerData &&
+            typeof visualizerData === 'object' &&
+            (visualizerData as { saveChanges?: boolean }).saveChanges === true
+          ) {
+            notifySaveRequested();
+          }
         },
       );
       connector.sendReady();
@@ -92,6 +103,18 @@ export function useEmbeddingBridge(): void {
       }
 
       logger.info('sent ready handshake', { candidateNames });
+
+      registerDirtyStateSender((isChanged) => {
+        for (const name of candidateNames) {
+          window.parent.postMessage(
+            {
+              type: `${name}/${VisualizerConnectorEvents.sendMessage}`,
+              payload: { isChanged },
+            },
+            parentOrigin,
+          );
+        }
+      });
     } catch (error) {
       logger.error('failed to set up visualizer connector', {
         parentOrigin,
@@ -101,6 +124,15 @@ export function useEmbeddingBridge(): void {
       return;
     }
 
-    return () => connector.destroy();
-  }, [id]);
+    return () => {
+      registerDirtyStateSender(null);
+      connector.destroy();
+    };
+  }, [
+    id,
+    dialAdminUrl,
+    applicationName,
+    registerDirtyStateSender,
+    notifySaveRequested,
+  ]);
 }

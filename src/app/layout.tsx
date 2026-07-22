@@ -32,7 +32,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex h-full flex-col overflow-hidden font-sans">
-        <EmbeddingContextProvider>
+        <EmbeddingContextProvider
+          dialAdminUrl={process.env.DIAL_ADMIN_URL}
+          applicationName={process.env.DIAL_APPLICATION_NAME}
+        >
           <Suspense fallback={null}>
             <EmbeddingBridge />
           </Suspense>

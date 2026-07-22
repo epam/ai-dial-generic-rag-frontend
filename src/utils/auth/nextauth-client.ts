@@ -1,6 +1,6 @@
 import type { Client } from 'openid-client';
 
-import { Token } from '@/lib/auth/types';
+import { Token } from '@/utils/auth/types';
 
 export interface RefreshToken {
   isRefreshing: boolean;

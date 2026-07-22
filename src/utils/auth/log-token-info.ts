@@ -1,6 +1,8 @@
 import { JWT } from 'next-auth/jwt';
 
-import { infoLog } from '@/lib/logger';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('auth');
 
 export const logTokenExpiration = (
   token: JWT | undefined | null,
@@ -14,5 +16,5 @@ export const logTokenExpiration = (
       : (token?.expires_at as number) * 1000,
   };
 
-  infoLog(`${logMsg}: ${JSON.stringify(tokenInfo)}`);
+  logger.info(`${logMsg}: ${JSON.stringify(tokenInfo)}`);
 };

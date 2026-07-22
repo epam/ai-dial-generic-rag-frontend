@@ -3,7 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useRef } from 'react';
 
-import { AUTH_WINDOW_CLOSE_KEY } from '@/lib/auth/constants';
+import { AUTH_WINDOW_CLOSE_KEY } from '@/constants/auth';
 
 export const useAuth = () => {
   const { data: session, status: sessionStatus } = useSession();

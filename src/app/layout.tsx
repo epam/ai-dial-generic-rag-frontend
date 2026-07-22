@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import '@/styles/globals.css';
 
 import { EmbeddingBridge } from '@/components/embedding/EmbeddingBridge';
+import { EmbeddingContextProvider } from '@/context/EmbeddingContext';
 import SessionProvider from '@/context/SessionProvider';
 
 const geistSans = Geist({
@@ -31,10 +32,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">
-        <Suspense fallback={null}>
-          <EmbeddingBridge />
-        </Suspense>
-        <SessionProvider>{children}</SessionProvider>
+        <EmbeddingContextProvider>
+          <Suspense fallback={null}>
+            <EmbeddingBridge />
+          </Suspense>
+          <SessionProvider>{children}</SessionProvider>
+        </EmbeddingContextProvider>
       </body>
     </html>
   );

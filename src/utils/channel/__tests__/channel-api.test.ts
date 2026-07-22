@@ -8,7 +8,7 @@ import {
 
 describe('buildDocumentsListUrl', () => {
   beforeEach(() => {
-    vi.stubEnv('DIAL_CORE_URL', 'https://core.example.com');
+    vi.stubEnv('DIAL_API_URL', 'https://core.example.com');
   });
 
   afterEach(() => {
@@ -27,17 +27,17 @@ describe('buildDocumentsListUrl', () => {
     );
   });
 
-  it('throws when DIAL_CORE_URL is not configured', () => {
-    vi.stubEnv('DIAL_CORE_URL', '');
+  it('throws when DIAL_API_URL is not configured', () => {
+    vi.stubEnv('DIAL_API_URL', '');
     expect(() => buildDocumentsListUrl('my-app', 0, 25)).toThrow(
-      'DIAL_CORE_URL is not configured',
+      'DIAL_API_URL is not configured',
     );
   });
 });
 
 describe('listDocuments', () => {
   beforeEach(() => {
-    vi.stubEnv('DIAL_CORE_URL', 'https://core.example.com');
+    vi.stubEnv('DIAL_API_URL', 'https://core.example.com');
     vi.stubGlobal('fetch', vi.fn());
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});

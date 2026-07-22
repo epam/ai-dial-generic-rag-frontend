@@ -21,9 +21,9 @@ export function buildDocumentsListUrl(
   offset: number,
   limit: number,
 ): string {
-  const baseUrl = process.env.DIAL_CORE_URL;
+  const baseUrl = process.env.DIAL_API_URL;
   if (!baseUrl) {
-    throw new Error('DIAL_CORE_URL is not configured');
+    throw new Error('DIAL_API_URL is not configured');
   }
 
   const url = new URL(

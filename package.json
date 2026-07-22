@@ -9,7 +9,9 @@
     "lint:fix": "eslint --fix",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "docker:build": "docker build -t ai-dial-generic-rag-frontend .",
+    "docker:run": "docker run --rm -p 3000:3000 ai-dial-generic-rag-frontend"
   },
   "dependencies": {
     "@epam/ai-dial-chat-visualizer-connector": "^0.47.3",

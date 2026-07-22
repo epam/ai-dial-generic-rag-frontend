@@ -8,7 +8,7 @@ import {
 } from '@epam/ai-dial-ui-kit';
 import { ReactNode } from 'react';
 
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/use-auth';
 import { isClientSessionValid } from '@/utils/auth/session';
 import { SessionStatus } from '@/utils/auth/types';
 

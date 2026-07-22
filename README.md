@@ -30,6 +30,21 @@ server-side by [`proxy.ts`](./src/proxy.ts).
 | `DIAL_APPLICATION_NAME`   | `'Generic RAG'` | No                  | Visualizer name used to namespace postMessage events with DIAL Admin when the `id` query param isn't present in the embedding URL. Should match the app's display name in DIAL config.  |
 | `DIAL_API_URL`            | —               | Yes                 | Base origin of DIAL Core, used to reach the channel API through its deployment route (`/v1/deployments/{application_id}/route/channel/**`).                                             |
 
+### Authentication
+
+Auth is optional and off by default — the app runs unguarded unless `NEXTAUTH_URL` is set. When
+enabling it, configure `NEXTAUTH_URL`/`NEXTAUTH_SECRET` plus **exactly one** identity provider's
+variables; see [`docs/authentication.md`](./docs/authentication.md) for the full per-provider
+variable reference (Keycloak, Azure AD, Google, Auth0, Amazon Cognito, Okta).
+
+| Variable           | Default        | Required              | Purpose                                                                                                   |
+| ------------------ | -------------- | --------------------- | --------------------------------------------------------------------------------------------------------- |
+| `NEXTAUTH_URL`     | —              | Yes (to enable auth)  | Canonical deployment URL NextAuth uses for callback URLs and to detect https. Its presence turns auth on. |
+| `NEXTAUTH_SECRET`  | —              | Yes (if auth enabled) | Secret NextAuth uses to sign/encrypt session JWTs.                                                        |
+| `ADMIN_ROLE_NAMES` | `'admin'`      | No                    | Comma-separated role names that grant admin access.                                                       |
+| `DIAL_ROLES_FIELD` | `'dial_roles'` | No                    | Dot-separated JWT claim path the user's roles are read from.                                              |
+| `SHOW_TOKEN_SUB`   | `false`        | No                    | Debug toggle — logs the token `sub` claim in the clear instead of masking it.                             |
+
 ## DIAL Admin embedding
 
 This app can be embedded as an iframe inside DIAL Admin's application editor UI. The integration

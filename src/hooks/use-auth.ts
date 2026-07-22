@@ -17,9 +17,8 @@ export const useAuth = () => {
       return;
     }
 
-    const provider = authProvider ?? process.env.NEXT_PUBLIC_AUTH_PROVIDER;
-    const url = provider
-      ? `/signin?authProvider=${encodeURIComponent(provider)}`
+    const url = authProvider
+      ? `/signin?authProvider=${encodeURIComponent(authProvider)}`
       : '/signin';
 
     authWindowRef.current = window.open(url, '_blank', 'width=600,height=600');

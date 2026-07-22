@@ -6,14 +6,16 @@ import { Provider, TokenEndpointHandler } from 'next-auth/providers/index';
 import KeycloakProvider from 'next-auth/providers/keycloak';
 import OktaProvider from 'next-auth/providers/okta';
 
-import { infoLog } from '@/lib/logger';
+import { createLogger } from '@/utils/logger';
 
 import NextClient from './nextauth-client';
+
+const logger = createLogger('auth');
 
 export const tokenConfig: TokenEndpointHandler = {
   request: async (context) => {
     let tokens;
-    infoLog(
+    logger.info(
       `Callback request: set client for provider: ${context.provider.id}`,
     );
 

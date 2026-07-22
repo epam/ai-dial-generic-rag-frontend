@@ -9,8 +9,8 @@ import {
 import { ReactNode } from 'react';
 
 import { useAuth } from '@/hooks/useAuth';
-import { isClientSessionValid } from '@/lib/auth/session';
-import { SessionStatus } from '@/lib/auth/types';
+import { isClientSessionValid } from '@/utils/auth/session';
+import { SessionStatus } from '@/utils/auth/types';
 
 interface SignInGateProps {
   authEnabled: boolean;

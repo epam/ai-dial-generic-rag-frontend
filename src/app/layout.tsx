@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { Suspense } from 'react';
+import { EmbeddingBridge } from '@/components/embedding/EmbeddingBridge';
 import './globals.css';
 
 const geistSans = Geist({
@@ -26,7 +28,12 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col font-sans">{children}</body>
+      <body className="flex min-h-full flex-col font-sans">
+        <Suspense fallback={null}>
+          <EmbeddingBridge />
+        </Suspense>
+        {children}
+      </body>
     </html>
   );
 }

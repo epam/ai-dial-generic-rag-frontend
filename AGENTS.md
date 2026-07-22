@@ -26,6 +26,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
   custom CSS or new utility classes — only add one as an absolute last resort when Tailwind has no
   way to express what's needed.
 - **UI**: prefer `@epam/ai-dial-ui-kit` `Dial*` components over raw HTML elements.
+- **Tests**: place `*.test.ts`/`*.test.tsx` files in a `__tests__` subfolder next to the code they
+  cover (e.g. `src/utils/embedding/__tests__/apply-theme.test.ts`), not colocated directly beside
+  the source file. Import the code under test via the `@/*` alias, not a relative path.
 
 ## When working with @epam/ai-dial-ui-kit
 
@@ -42,6 +45,16 @@ MCP server.
 
 **If the MCP server is not available in your session**, read the type definitions directly from
 `node_modules/@epam/ai-dial-ui-kit/dist/src/**/*.d.ts` instead.
+
+## DIAL Admin iframe embedding
+
+`src/hooks/use-embedding-bridge.ts` (logic) plus `src/components/embedding/EmbeddingBridge.tsx`
+(the `Suspense`-boundary host) and `src/utils/embedding/` wire up this app's side of being embedded
+as an iframe in DIAL Admin (reads `theme`/`authProvider`/`id` query params, sends the
+`ChatVisualizerConnector` ready handshake). **Auth is intentionally not implemented
+here** — the embedded app is expected to eventually authenticate independently (its own
+OIDC/session, not a token passed through the iframe), but that work has not started yet. Anything
+that assumes an authenticated session inside this app is not yet safe to build on.
 
 ## Commands reference
 

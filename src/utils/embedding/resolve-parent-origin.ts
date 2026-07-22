@@ -4,10 +4,13 @@ const logger = createLogger('embedding:parent-origin');
 
 /**
  * Resolves the embedding parent's origin, preferring `ancestorOrigins`, then
- * `document.referrer`, then the `NEXT_PUBLIC_DIAL_ADMIN_URL` env var as a dev/fallback.
+ * `document.referrer`, then `fallbackOrigin` (the `DIAL_ADMIN_URL` env var, read server-side and
+ * passed down via `EmbeddingContext`) as a dev/fallback.
  * @returns The parent origin, or `undefined` if none could be resolved.
  */
-export function resolveParentOrigin(): string | undefined {
+export function resolveParentOrigin(
+  fallbackOrigin?: string | null,
+): string | undefined {
   if (typeof window === 'undefined') {
     return undefined;
   }
@@ -36,14 +39,11 @@ export function resolveParentOrigin(): string | undefined {
     }
   }
 
-  const fallback = process.env.NEXT_PUBLIC_DIAL_ADMIN_URL || undefined;
+  const fallback = fallbackOrigin || undefined;
   if (fallback) {
-    logger.debug(
-      'resolved parent origin from NEXT_PUBLIC_DIAL_ADMIN_URL fallback',
-      {
-        fallback,
-      },
-    );
+    logger.debug('resolved parent origin from DIAL_ADMIN_URL fallback', {
+      fallback,
+    });
   } else {
     logger.warn(
       'could not resolve a parent origin (no ancestorOrigins, no referrer, no fallback env var)',

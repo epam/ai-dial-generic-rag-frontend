@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { Suspense } from 'react';
+import '@/styles/globals.css';
+
 import { EmbeddingBridge } from '@/components/embedding/EmbeddingBridge';
-import './globals.css';
+import SessionProvider from '@/context/SessionProvider';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -32,7 +34,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <EmbeddingBridge />
         </Suspense>
-        {children}
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   );

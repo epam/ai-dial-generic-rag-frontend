@@ -7,15 +7,14 @@ import {
 } from 'next-auth';
 import type { TokenSet } from 'openid-client';
 
+import { getIsEnableAuthToggle } from '@/utils/auth/get-auth-toggle';
 import { Token } from '@/utils/auth/types';
-import { createLogger } from '@/utils/logger';
+import { authLogger as logger } from '@/utils/auth/logger';
 import { isDefined } from '@/utils/utility';
 
 import { authProviders } from './auth-providers';
 import { logTokenExpiration } from './log-token-info';
 import NextClient, { RefreshToken } from './nextauth-client';
-
-const logger = createLogger('auth');
 
 declare module 'next-auth' {
   interface Session {
@@ -223,7 +222,7 @@ function defaultCookies(
 }
 
 const isSecure =
-  !!process.env.NEXTAUTH_URL && process.env.NEXTAUTH_URL.startsWith('https:');
+  getIsEnableAuthToggle() && !!process.env.NEXTAUTH_URL?.startsWith('https:');
 
 export const callbacks: Partial<
   CallbacksOptions<Profile & { job_title?: string }, Account>

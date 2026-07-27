@@ -1,0 +1,1 @@
+export const AUTH_WINDOW_CLOSE_KEY = 'AUTH_WINDOW_CLOSED';

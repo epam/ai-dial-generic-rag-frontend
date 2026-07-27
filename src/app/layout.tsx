@@ -1,0 +1,47 @@
+import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
+import { Suspense } from 'react';
+import '@/styles/globals.css';
+
+import { EmbeddingBridge } from '@/components/embedding/EmbeddingBridge';
+import { EmbeddingContextProvider } from '@/context/EmbeddingContext';
+import SessionProvider from '@/context/SessionProvider';
+
+const geistSans = Geist({
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+});
+
+const geistMono = Geist_Mono({
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+});
+
+export const metadata: Metadata = {
+  title: 'ai-dial-generic-rag-frontend',
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="flex h-full flex-col overflow-hidden font-sans">
+        <EmbeddingContextProvider
+          dialAdminUrl={process.env.DIAL_ADMIN_URL}
+          applicationName={process.env.DIAL_APPLICATION_NAME}
+        >
+          <Suspense fallback={null}>
+            <EmbeddingBridge />
+          </Suspense>
+          <SessionProvider>{children}</SessionProvider>
+        </EmbeddingContextProvider>
+      </body>
+    </html>
+  );
+}

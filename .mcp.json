@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ai-dial-ui-kit": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["./node_modules/@epam/ai-dial-ui-kit/dist/mcp-server.cjs"]
+    }
+  }
+}

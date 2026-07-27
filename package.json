@@ -17,7 +17,7 @@
     "@epam/ai-dial-chat-visualizer-connector": "^0.47.3",
     "@epam/ai-dial-shared": "^0.47.3",
     "@epam/ai-dial-ui-kit": "^0.12.0-dev.34",
-    "next": "16.2.10",
+    "next": "16.2.12",
     "next-auth": "^4.24.12",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
@@ -33,7 +33,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "ag-grid-community": "^35.3.1",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.2.12",
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "^29.1.1",
     "prettier": "^3.9.5",
@@ -46,6 +46,7 @@
     "postcss": "^8.5.19",
     "dompurify": "^3.4.12",
     "sharp": "^0.35.3",
-    "@hono/node-server": "^2.0.11"
+    "@hono/node-server": "^2.0.11",
+    "minimatch": "^10.2.5"
   }
 }

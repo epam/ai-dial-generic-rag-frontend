@@ -1,4 +1,5 @@
 import type { PaginatedDocuments } from '@/types/documents';
+import type { ChannelMetadata } from '@/types/metadata';
 import { channelLogger } from '@/utils/channel/logger';
 
 /**
@@ -16,10 +17,11 @@ export class UpstreamRequestError extends Error {
   }
 }
 
-export function buildDocumentsListUrl(
+/** Builds a DIAL Core deployment channel URL: `/v1/deployments/{id}/route/channel/{segment}`. */
+function buildChannelUrl(
   applicationId: string,
-  offset: number,
-  limit: number,
+  segment: string,
+  searchParams?: Record<string, string>,
 ): string {
   const baseUrl = process.env.DIAL_API_URL;
   if (!baseUrl) {
@@ -27,12 +29,42 @@ export function buildDocumentsListUrl(
   }
 
   const url = new URL(
-    `/v1/deployments/${encodeURIComponent(applicationId)}/route/channel/documents`,
+    `/v1/deployments/${encodeURIComponent(applicationId)}/route/channel/${segment}`,
     baseUrl,
   );
-  url.searchParams.set('offset', String(offset));
-  url.searchParams.set('limit', String(limit));
+  for (const [key, value] of Object.entries(searchParams ?? {})) {
+    url.searchParams.set(key, value);
+  }
   return url.toString();
+}
+
+export function buildDocumentsListUrl(
+  applicationId: string,
+  offset: number,
+  limit: number,
+): string {
+  return buildChannelUrl(applicationId, 'documents', {
+    offset: String(offset),
+    limit: String(limit),
+  });
+}
+
+export function buildMetadataUrl(applicationId: string): string {
+  return buildChannelUrl(applicationId, 'metadata');
+}
+
+/** GETs a channel URL with the optional bearer token, throwing {@link UpstreamRequestError} on non-OK. */
+async function channelFetch<T>(url: string, accessToken?: string): Promise<T> {
+  const headers: Record<string, string> = accessToken
+    ? { Authorization: `Bearer ${accessToken}` }
+    : {};
+
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    throw new UpstreamRequestError(response.status);
+  }
+
+  return (await response.json()) as T;
 }
 
 export async function listDocuments(params: {
@@ -43,16 +75,16 @@ export async function listDocuments(params: {
 }): Promise<PaginatedDocuments> {
   const { applicationId, offset, limit, accessToken } = params;
   const url = buildDocumentsListUrl(applicationId, offset, limit);
-  const headers: Record<string, string> = accessToken
-    ? { Authorization: `Bearer ${accessToken}` }
-    : {};
-
   channelLogger.debug('fetching documents', { applicationId, offset, limit });
+  return channelFetch<PaginatedDocuments>(url, accessToken);
+}
 
-  const response = await fetch(url, { headers });
-  if (!response.ok) {
-    throw new UpstreamRequestError(response.status);
-  }
-
-  return (await response.json()) as PaginatedDocuments;
+export async function getMetadata(params: {
+  applicationId: string;
+  accessToken?: string;
+}): Promise<ChannelMetadata> {
+  const { applicationId, accessToken } = params;
+  const url = buildMetadataUrl(applicationId);
+  channelLogger.debug('fetching document metadata schema', { applicationId });
+  return channelFetch<ChannelMetadata>(url, accessToken);
 }

@@ -1,4 +1,11 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/context/EmbeddingContext', () => ({
@@ -31,6 +38,30 @@ vi.mock('@epam/ai-dial-ui-kit', () => ({
       data-total-pages={props.totalPages}
     >
       <button onClick={() => props.onPageChange(props.page + 1)}>next</button>
+    </div>
+  ),
+  DialButton: (props: {
+    label?: ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+  }) => (
+    <button onClick={props.onClick} disabled={props.disabled}>
+      {props.label}
+    </button>
+  ),
+  ButtonVariant: { Primary: 'primary' },
+}));
+
+// Stub the dialog so the grid test exercises open/close/refresh wiring, not the modal internals.
+vi.mock('@/components/documents/AddDocumentDialog', () => ({
+  AddDocumentDialog: (props: {
+    applicationId: string;
+    onClose: () => void;
+    onUploaded: (document: unknown) => void;
+  }) => (
+    <div data-testid="add-dialog" data-application-id={props.applicationId}>
+      <button onClick={() => props.onUploaded({ id: 99 })}>mock-upload</button>
+      <button onClick={props.onClose}>mock-close</button>
     </div>
   ),
 }));
@@ -258,5 +289,65 @@ describe('DocumentsGrid', () => {
       expect(screen.getByTestId('grid').dataset.loading).toBe('false');
     });
     expect(screen.getByTestId('grid').dataset.rowCount).toBe('0');
+  });
+
+  it('renders the Documents title and an Add button', () => {
+    stubFetch();
+
+    render(<DocumentsGrid />);
+
+    expect(
+      screen.getByRole('heading', { name: 'Documents' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
+  });
+
+  it('opens the add-document dialog when Add is clicked', async () => {
+    stubFetch();
+
+    render(<DocumentsGrid />);
+
+    expect(screen.queryByTestId('add-dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+    const dialog = await screen.findByTestId('add-dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(dialog.dataset.applicationId).toBe('my-app');
+  });
+
+  it('disables the Add button when applicationId is absent', () => {
+    vi.mocked(useEmbeddingContext).mockReturnValue({
+      theme: null,
+      authProvider: null,
+      id: null,
+      setEmbeddingParams: vi.fn(),
+    });
+    stubFetch();
+
+    render(<DocumentsGrid />);
+
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+  });
+
+  it('closes the dialog and re-fetches the documents after an upload', async () => {
+    stubFetch();
+
+    render(<DocumentsGrid />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('grid').dataset.rowCount).toBe('2');
+    });
+
+    const documentCalls = () =>
+      (fetch as ReturnType<typeof vi.fn>).mock.calls.filter((call) =>
+        String(call[0]).startsWith('/api/documents'),
+      ).length;
+    const before = documentCalls();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'mock-upload' }));
+
+    await waitFor(() => expect(documentCalls()).toBe(before + 1));
+    expect(screen.queryByTestId('add-dialog')).not.toBeInTheDocument();
   });
 });

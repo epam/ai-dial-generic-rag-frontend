@@ -1,4 +1,4 @@
-import type { PaginatedDocuments } from '@/types/documents';
+import type { Document, PaginatedDocuments } from '@/types/documents';
 import type { ChannelMetadata } from '@/types/metadata';
 import { channelLogger } from '@/utils/channel/logger';
 
@@ -53,13 +53,37 @@ export function buildMetadataUrl(applicationId: string): string {
   return buildChannelUrl(applicationId, 'metadata');
 }
 
-/** GETs a channel URL with the optional bearer token, throwing {@link UpstreamRequestError} on non-OK. */
-async function channelFetch<T>(url: string, accessToken?: string): Promise<T> {
-  const headers: Record<string, string> = accessToken
-    ? { Authorization: `Bearer ${accessToken}` }
-    : {};
+/**
+ * Builds the channel document upload URL, appending the optional `folder` query parameter (the
+ * folder where the backend stores the file). Reuses the `documents` segment shared with the list.
+ */
+export function buildDocumentsUploadUrl(
+  applicationId: string,
+  folder?: string,
+): string {
+  return buildChannelUrl(
+    applicationId,
+    'documents',
+    folder ? { folder } : undefined,
+  );
+}
 
-  const response = await fetch(url, { headers });
+/**
+ * Fetches a channel URL with the optional bearer token, throwing {@link UpstreamRequestError} on
+ * non-OK and parsing the JSON body. Extra `init` (e.g. `method`/`body` for uploads) is merged in;
+ * `Content-Type` is left unset so `fetch` derives the multipart boundary when `body` is `FormData`.
+ */
+async function channelFetch<T>(
+  url: string,
+  accessToken?: string,
+  init?: RequestInit,
+): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+
+  const response = await fetch(url, { ...init, headers });
   if (!response.ok) {
     throw new UpstreamRequestError(response.status);
   }
@@ -87,4 +111,24 @@ export async function getMetadata(params: {
   const url = buildMetadataUrl(applicationId);
   channelLogger.debug('fetching document metadata schema', { applicationId });
   return channelFetch<ChannelMetadata>(url, accessToken);
+}
+
+/**
+ * Uploads a document to the channel via multipart POST. `formData` must carry the required
+ * `attachment` file and may include a `metadata` JSON string (matching the channel's schema).
+ * The `Content-Type` header is deliberately left unset so `fetch` derives the multipart boundary.
+ */
+export async function uploadDocument(params: {
+  applicationId: string;
+  formData: FormData;
+  folder?: string;
+  accessToken?: string;
+}): Promise<Document> {
+  const { applicationId, formData, folder, accessToken } = params;
+  const url = buildDocumentsUploadUrl(applicationId, folder);
+  channelLogger.debug('uploading document', { applicationId, folder });
+  return channelFetch<Document>(url, accessToken, {
+    method: 'POST',
+    body: formData,
+  });
 }

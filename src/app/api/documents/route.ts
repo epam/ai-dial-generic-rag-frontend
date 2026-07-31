@@ -3,12 +3,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAccessToken } from '@/utils/auth/get-access-token';
 import {
   listDocuments,
+  uploadDocument,
   UpstreamRequestError,
 } from '@/utils/channel/channel-api';
 import { channelLogger } from '@/utils/channel/logger';
 
 const DEFAULT_OFFSET = 0;
 const DEFAULT_LIMIT = 25;
+
+// Document uploads can take a while to stream to DIAL Core, so allow more than the default budget.
+export const maxDuration = 45;
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = request.nextUrl;
@@ -46,6 +50,72 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
     return NextResponse.json(
       { error: 'Failed to fetch documents' },
+      { status: 502 },
+    );
+  }
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const { searchParams } = request.nextUrl;
+  const applicationId = searchParams.get('applicationId');
+  const folder = searchParams.get('folder') ?? undefined;
+
+  if (!applicationId) {
+    return NextResponse.json(
+      { error: 'applicationId query parameter is required' },
+      { status: 400 },
+    );
+  }
+
+  let attachment: File;
+  let metadata: string | null;
+  try {
+    const form = await request.formData();
+    const file = form.get('attachment');
+    if (!(file instanceof File)) {
+      return NextResponse.json(
+        { error: 'attachment file is required' },
+        { status: 400 },
+      );
+    }
+    attachment = file;
+    const rawMetadata = form.get('metadata');
+    metadata = typeof rawMetadata === 'string' ? rawMetadata : null;
+  } catch {
+    return NextResponse.json(
+      { error: 'A valid multipart/form-data body is required' },
+      { status: 400 },
+    );
+  }
+
+  // Forward only the fields the channel accepts, so unexpected form parts are not passed upstream.
+  const forward = new FormData();
+  forward.append('attachment', attachment, attachment.name);
+  if (metadata !== null) {
+    forward.append('metadata', metadata);
+  }
+
+  try {
+    const accessToken = await getAccessToken(request);
+    const document = await uploadDocument({
+      applicationId,
+      folder,
+      formData: forward,
+      accessToken,
+    });
+    return NextResponse.json(document, { status: 201 });
+  } catch (error) {
+    if (error instanceof UpstreamRequestError) {
+      channelLogger.warn('channel upload API returned a non-OK status', {
+        applicationId,
+        folder,
+        status: error.status,
+      });
+    } else {
+      channelLogger.error('unexpected error while uploading document', error);
+    }
+    return NextResponse.json(
+      { error: 'Failed to upload document' },
       { status: 502 },
     );
   }

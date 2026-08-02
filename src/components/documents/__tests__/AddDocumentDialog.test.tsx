@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -39,9 +45,7 @@ vi.mock('@epam/ai-dial-ui-kit', () => ({
       data-accept={props.acceptTypes}
       type="file"
       onChange={(event) =>
-        props.onChange(
-          event.target.files ? Array.from(event.target.files) : [],
-        )
+        props.onChange(event.target.files ? Array.from(event.target.files) : [])
       }
     />
   ),
@@ -171,7 +175,9 @@ describe('AddDocumentDialog', () => {
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(created));
 
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('/api/documents?applicationId=my-app&folder=reports%2F2026');
+    expect(url).toBe(
+      '/api/documents?applicationId=my-app&folder=reports%2F2026',
+    );
     expect(init.method).toBe('POST');
     const body = init.body as FormData;
     expect((body.get('attachment') as File).name).toBe('report.pdf');

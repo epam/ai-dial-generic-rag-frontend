@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildDocumentsListUrl,
+  buildDocumentsUploadUrl,
   buildMetadataUrl,
   getMetadata,
   listDocuments,
+  uploadDocument,
   UpstreamRequestError,
 } from '@/utils/channel/channel-api';
 
@@ -198,5 +200,107 @@ describe('getMetadata', () => {
 
     expect(error).toBeInstanceOf(UpstreamRequestError);
     expect((error as UpstreamRequestError).status).toBe(503);
+  });
+});
+
+describe('buildDocumentsUploadUrl', () => {
+  beforeEach(() => {
+    vi.stubEnv('DIAL_API_URL', 'https://core.example.com');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('builds the channel documents URL without a folder', () => {
+    expect(buildDocumentsUploadUrl('my-app')).toBe(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents',
+    );
+  });
+
+  it('appends the folder query parameter when provided', () => {
+    expect(buildDocumentsUploadUrl('my-app', 'reports/2026')).toBe(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents?folder=reports%2F2026',
+    );
+  });
+});
+
+describe('uploadDocument', () => {
+  beforeEach(() => {
+    vi.stubEnv('DIAL_API_URL', 'https://core.example.com');
+    vi.stubGlobal('fetch', vi.fn());
+    vi.spyOn(console, 'debug').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it('POSTs the form data with a bearer token and returns the created document', async () => {
+    const created = {
+      id: 1,
+      url: 'u1',
+      display_name: 'a.pdf',
+      mime_type: 'application/pdf',
+      size: 10,
+      status: 'created',
+    };
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => created,
+    });
+    const formData = new FormData();
+
+    const result = await uploadDocument({
+      applicationId: 'my-app',
+      formData,
+      folder: 'reports',
+      accessToken: 'token-123',
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents?folder=reports',
+      {
+        method: 'POST',
+        body: formData,
+        headers: { Authorization: 'Bearer token-123' },
+      },
+    );
+    expect(result).toEqual(created);
+  });
+
+  it('sends no Authorization header when accessToken is absent', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({}),
+    });
+    const formData = new FormData();
+
+    await uploadDocument({ applicationId: 'my-app', formData });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents',
+      { method: 'POST', body: formData, headers: {} },
+    );
+  });
+
+  it('throws an UpstreamRequestError carrying the status when the response is not ok', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({}),
+    });
+
+    const error = await uploadDocument({
+      applicationId: 'my-app',
+      formData: new FormData(),
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(UpstreamRequestError);
+    expect((error as UpstreamRequestError).status).toBe(422);
   });
 });

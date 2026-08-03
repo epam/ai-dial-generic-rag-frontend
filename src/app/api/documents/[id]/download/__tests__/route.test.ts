@@ -76,7 +76,9 @@ describe('GET /api/documents/[id]/download', () => {
 
   it('returns 502 when the channel download fails', async () => {
     vi.mocked(getAccessToken).mockResolvedValue('token-123');
-    vi.mocked(downloadDocument).mockRejectedValue(new UpstreamRequestError(404));
+    vi.mocked(downloadDocument).mockRejectedValue(
+      new UpstreamRequestError(404),
+    );
 
     const response = await GET(
       makeRequest('?applicationId=my-app&filename=a.pdf'),

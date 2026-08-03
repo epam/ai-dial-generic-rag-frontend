@@ -517,7 +517,11 @@ describe('DocumentsGrid', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Download' }));
 
-    expect(downloadDocumentFile).toHaveBeenCalledWith('my-app', 7, 'report.pdf');
+    expect(downloadDocumentFile).toHaveBeenCalledWith(
+      'my-app',
+      7,
+      'report.pdf',
+    );
   });
 
   it('opens the delete confirmation and re-fetches after a delete', async () => {

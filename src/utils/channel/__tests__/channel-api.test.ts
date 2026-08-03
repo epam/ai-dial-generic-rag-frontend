@@ -368,9 +368,10 @@ describe('single-document operations', () => {
       status: 404,
     });
 
-    const error = await deleteDocument({ applicationId: 'my-app', id: 7 }).catch(
-      (e: unknown) => e,
-    );
+    const error = await deleteDocument({
+      applicationId: 'my-app',
+      id: 7,
+    }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(UpstreamRequestError);
     expect((error as UpstreamRequestError).status).toBe(404);

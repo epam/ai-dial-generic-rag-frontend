@@ -1,20 +1,26 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColDef, GridOptions } from 'ag-grid-community';
 import {
   ButtonVariant,
   DialButton,
   DialGrid,
+  DialNotification,
   DialPagination,
+  NotificationVariant,
 } from '@epam/ai-dial-ui-kit';
 
 import { AddDocumentDialog } from '@/components/documents/AddDocumentDialog';
+import { DeleteDocumentDialog } from '@/components/documents/DeleteDocumentDialog';
+import { DocumentActionsCell } from '@/components/documents/DocumentActionsCell';
+import { DocumentActionsProvider } from '@/components/documents/DocumentActionsContext';
 import { DocumentsFloatingFilter } from '@/components/documents/DocumentsFloatingFilter';
 import { useEmbeddingContext } from '@/context/EmbeddingContext';
 import type { Document, PaginatedDocuments } from '@/types/documents';
 import type { ChannelMetadata, DocumentMetadataSchema } from '@/types/metadata';
 import { channelLogger } from '@/utils/channel/logger';
+import { downloadDocumentFile } from '@/utils/documents/download';
 import { buildMetadataColumns } from '@/utils/documents/metadata-columns';
 
 const PAGE_SIZE = 25;
@@ -31,6 +37,22 @@ const BASE_COLUMN_DEFS: ColDef<Document>[] = [
 // Match DIAL Admin's compact header (30px vs DialGrid's default 40px). additionalGridOptions is
 // merged last, so this overrides the height without replacing DialGrid's defaultColDef.
 const GRID_OPTIONS: GridOptions<Document> = { headerHeight: 30 };
+
+// Pinned rightmost kebab (⋮) menu column. Added after the floating-filter map so it gets no search
+// input, and non-interactive as a column (sorting/filtering/resizing off).
+const ACTIONS_COLUMN: ColDef<Document> = {
+  colId: 'actions',
+  headerName: '',
+  cellRenderer: DocumentActionsCell,
+  pinned: 'right',
+  width: 56,
+  minWidth: 56,
+  maxWidth: 64,
+  sortable: false,
+  filter: false,
+  floatingFilter: false,
+  resizable: false,
+};
 
 function fetchKey(
   applicationId: string,
@@ -68,6 +90,11 @@ export function DocumentsGrid() {
     useState<DocumentMetadataSchema | null>(null);
   const [isAddOpen, setAddOpen] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<Document | null>(null);
+  const [notification, setNotification] = useState<{
+    variant: NotificationVariant;
+    message: string;
+  } | null>(null);
 
   // Load the document metadata schema once per application; the extra columns (filterable
   // string/date properties, appended after the fixed ones) are derived from it in the memo below.
@@ -154,9 +181,83 @@ export function DocumentsGrid() {
     };
   }, [applicationId, page, refreshTick]);
 
+  // Auto-dismiss the transient row-action notification.
+  useEffect(() => {
+    if (!notification) {
+      return;
+    }
+    const timer = setTimeout(() => setNotification(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notification]);
+
+  const onDownload = useCallback(
+    (targetDocument: Document) => {
+      if (!applicationId) {
+        return;
+      }
+      downloadDocumentFile(
+        applicationId,
+        targetDocument.id,
+        targetDocument.display_name,
+      );
+    },
+    [applicationId],
+  );
+
+  const onReindex = useCallback(
+    async (targetDocument: Document) => {
+      if (!applicationId) {
+        return;
+      }
+      const params = new URLSearchParams({ applicationId });
+      try {
+        const response = await fetch(
+          `/api/documents/${targetDocument.id}/reindex?${params.toString()}`,
+          { method: 'PUT' },
+        );
+        if (!response.ok) {
+          channelLogger.warn('failed to reindex document', {
+            id: targetDocument.id,
+            status: response.status,
+          });
+          setNotification({
+            variant: NotificationVariant.Error,
+            message: `Failed to reindex "${targetDocument.display_name}".`,
+          });
+          return;
+        }
+        setNotification({
+          variant: NotificationVariant.Success,
+          message: `Reindex started for "${targetDocument.display_name}".`,
+        });
+        // The row status flips to indexing/processing; reload the page to reflect it.
+        setRefreshTick((tick) => tick + 1);
+      } catch (error: unknown) {
+        channelLogger.warn('failed to reindex document', {
+          id: targetDocument.id,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+        setNotification({
+          variant: NotificationVariant.Error,
+          message: `Failed to reindex "${targetDocument.display_name}".`,
+        });
+      }
+    },
+    [applicationId],
+  );
+
+  const onRequestDelete = useCallback((targetDocument: Document) => {
+    setPendingDelete(targetDocument);
+  }, []);
+
+  const documentActions = useMemo(
+    () => ({ onDownload, onReindex, onRequestDelete }),
+    [onDownload, onReindex, onRequestDelete],
+  );
+
   const columnDefs = useMemo<ColDef<Document>[]>(
-    () =>
-      [
+    () => [
+      ...[
         ...BASE_COLUMN_DEFS,
         ...buildMetadataColumns(metadataSchema ?? undefined),
       ].map((column) => ({
@@ -164,6 +265,8 @@ export function DocumentsGrid() {
         // DialGrid owns its defaultColDef, so the DIAL Admin-style search input is set per column.
         floatingFilterComponent: DocumentsFloatingFilter,
       })),
+      ACTIONS_COLUMN,
+    ],
     [metadataSchema],
   );
 
@@ -189,14 +292,17 @@ export function DocumentsGrid() {
           />
         </div>
         <div className="min-h-0 flex-1">
-          <DialGrid<Document>
-            columnDefs={columnDefs}
-            rowData={data?.results ?? []}
-            loading={loading}
-            additionalGridOptions={GRID_OPTIONS}
-            emptyStateTitle="No documents"
-            emptyStateDescription="This channel has no documents yet."
-          />
+          <DocumentActionsProvider value={documentActions}>
+            <DialGrid<Document>
+              columnDefs={columnDefs}
+              rowData={data?.results ?? []}
+              loading={loading}
+              additionalGridOptions={GRID_OPTIONS}
+              wrapCustomCellRenderers={false}
+              emptyStateTitle="No documents"
+              emptyStateDescription="This channel has no documents yet."
+            />
+          </DocumentActionsProvider>
         </div>
         <div className="flex justify-center">
           <DialPagination
@@ -217,6 +323,27 @@ export function DocumentsGrid() {
             setRefreshTick((tick) => tick + 1);
           }}
         />
+      )}
+      {pendingDelete && applicationId && (
+        <DeleteDocumentDialog
+          applicationId={applicationId}
+          document={pendingDelete}
+          onClose={() => setPendingDelete(null)}
+          onDeleted={() => {
+            setPendingDelete(null);
+            setRefreshTick((tick) => tick + 1);
+          }}
+        />
+      )}
+      {notification && (
+        <div className="fixed right-4 bottom-4 z-50 w-80 max-w-[90vw]">
+          <DialNotification
+            variant={notification.variant}
+            message={notification.message}
+            closable
+            onClose={() => setNotification(null)}
+          />
+        </div>
       )}
     </div>
   );

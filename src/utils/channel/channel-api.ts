@@ -69,15 +69,33 @@ export function buildDocumentsUploadUrl(
 }
 
 /**
- * Fetches a channel URL with the optional bearer token, throwing {@link UpstreamRequestError} on
- * non-OK and parsing the JSON body. Extra `init` (e.g. `method`/`body` for uploads) is merged in;
- * `Content-Type` is left unset so `fetch` derives the multipart boundary when `body` is `FormData`.
+ * Builds an id-scoped channel document URL: `documents/{id}` plus an optional sub-path
+ * (e.g. `reindex`, `download`). The id is encoded here since `buildChannelUrl` inserts the
+ * segment raw.
  */
-async function channelFetch<T>(
+export function buildDocumentUrl(
+  applicationId: string,
+  id: number,
+  subPath?: string,
+): string {
+  const encodedId = encodeURIComponent(String(id));
+  return buildChannelUrl(
+    applicationId,
+    subPath ? `documents/${encodedId}/${subPath}` : `documents/${encodedId}`,
+  );
+}
+
+/**
+ * Fetches a channel URL with the optional bearer token, throwing {@link UpstreamRequestError} on
+ * non-OK and returning the raw {@link Response}. Extra `init` (e.g. `method`/`body`) is merged in;
+ * `Content-Type` is left unset so `fetch` derives the multipart boundary when `body` is `FormData`.
+ * Use this directly for empty (204) or binary responses; use {@link channelFetch} for JSON.
+ */
+async function channelRequest(
   url: string,
   accessToken?: string,
   init?: RequestInit,
-): Promise<T> {
+): Promise<Response> {
   const headers: Record<string, string> = {
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     ...(init?.headers as Record<string, string> | undefined),
@@ -88,6 +106,16 @@ async function channelFetch<T>(
     throw new UpstreamRequestError(response.status);
   }
 
+  return response;
+}
+
+/** {@link channelRequest} that parses and returns the JSON body as `T`. */
+async function channelFetch<T>(
+  url: string,
+  accessToken?: string,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await channelRequest(url, accessToken, init);
   return (await response.json()) as T;
 }
 
@@ -131,4 +159,40 @@ export async function uploadDocument(params: {
     method: 'POST',
     body: formData,
   });
+}
+
+/** Deletes a document from the channel. The endpoint responds `204 No Content`, so returns nothing. */
+export async function deleteDocument(params: {
+  applicationId: string;
+  id: number;
+  accessToken?: string;
+}): Promise<void> {
+  const { applicationId, id, accessToken } = params;
+  const url = buildDocumentUrl(applicationId, id);
+  channelLogger.debug('deleting document', { applicationId, id });
+  await channelRequest(url, accessToken, { method: 'DELETE' });
+}
+
+/** Reindexes a document (all indexes, no reprocess) and returns its updated state. */
+export async function reindexDocument(params: {
+  applicationId: string;
+  id: number;
+  accessToken?: string;
+}): Promise<Document> {
+  const { applicationId, id, accessToken } = params;
+  const url = buildDocumentUrl(applicationId, id, 'reindex');
+  channelLogger.debug('reindexing document', { applicationId, id });
+  return channelFetch<Document>(url, accessToken, { method: 'PUT' });
+}
+
+/** Fetches the original document file as a raw streaming {@link Response} (for proxying a download). */
+export async function downloadDocument(params: {
+  applicationId: string;
+  id: number;
+  accessToken?: string;
+}): Promise<Response> {
+  const { applicationId, id, accessToken } = params;
+  const url = buildDocumentUrl(applicationId, id, 'download');
+  channelLogger.debug('downloading document', { applicationId, id });
+  return channelRequest(url, accessToken);
 }

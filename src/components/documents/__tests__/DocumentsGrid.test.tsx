@@ -5,7 +5,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/context/EmbeddingContext', () => ({
@@ -13,20 +13,44 @@ vi.mock('@/context/EmbeddingContext', () => ({
 }));
 
 vi.mock('@epam/ai-dial-ui-kit', () => ({
+  // Renders the pinned actions column's cell for each row (real DocumentActionsCell), so the row
+  // actions are clickable, and exposes col headers/ids for assertions. Actions column is excluded
+  // from col-headers so the existing header assertions stay stable.
   DialGrid: (props: {
-    rowData?: unknown[];
+    rowData?: { id: number }[];
     loading?: boolean;
-    columnDefs?: { colId?: string; field?: string; headerName?: string }[];
-  }) => (
-    <div
-      data-testid="grid"
-      data-loading={String(!!props.loading)}
-      data-row-count={String(props.rowData?.length ?? 0)}
-      data-col-headers={(props.columnDefs ?? [])
-        .map((col) => col.headerName ?? col.field ?? col.colId ?? '')
-        .join('|')}
-    />
-  ),
+    columnDefs?: {
+      colId?: string;
+      field?: string;
+      headerName?: string;
+      cellRenderer?: ComponentType<{ data: { id: number } }>;
+    }[];
+  }) => {
+    const ActionsRenderer = props.columnDefs?.find(
+      (col) => col.colId === 'actions',
+    )?.cellRenderer;
+    return (
+      <div
+        data-testid="grid"
+        data-loading={String(!!props.loading)}
+        data-row-count={String(props.rowData?.length ?? 0)}
+        data-col-headers={(props.columnDefs ?? [])
+          .filter((col) => col.colId !== 'actions')
+          .map((col) => col.headerName ?? col.field ?? col.colId ?? '')
+          .join('|')}
+        data-col-ids={(props.columnDefs ?? [])
+          .map((col) => col.colId ?? col.field ?? '')
+          .join('|')}
+      >
+        {ActionsRenderer &&
+          (props.rowData ?? []).map((row) => (
+            <div key={row.id} data-testid="row-actions">
+              <ActionsRenderer data={row} />
+            </div>
+          ))}
+      </div>
+    );
+  },
   DialPagination: (props: {
     page: number;
     totalPages: number;
@@ -50,9 +74,39 @@ vi.mock('@epam/ai-dial-ui-kit', () => ({
     </button>
   ),
   ButtonVariant: { Primary: 'primary' },
+  NotificationVariant: {
+    Info: 'info',
+    Success: 'success',
+    Warning: 'warning',
+    Error: 'error',
+    Loading: 'loading',
+  },
+  DialNotification: (props: { variant?: string; message: ReactNode }) => (
+    <div data-testid="notification" data-variant={props.variant}>
+      {props.message}
+    </div>
+  ),
+  // Used by the real DocumentActionsCell: render each menu item as a button.
+  DropdownTrigger: { Click: 'click' },
+  DialGhostIconButton: () => (
+    <button aria-label="Document actions">menu</button>
+  ),
+  DialDropdown: (props: {
+    items?: { key: string; label: ReactNode; onClick?: () => void }[];
+    children: ReactNode;
+  }) => (
+    <div>
+      {props.children}
+      {props.items?.map((item) => (
+        <button key={item.key} onClick={() => item.onClick?.()}>
+          {item.label}
+        </button>
+      ))}
+    </div>
+  ),
 }));
 
-// Stub the dialog so the grid test exercises open/close/refresh wiring, not the modal internals.
+// Stub the dialogs so the grid test exercises open/close/refresh wiring, not the modal internals.
 vi.mock('@/components/documents/AddDocumentDialog', () => ({
   AddDocumentDialog: (props: {
     applicationId: string;
@@ -66,8 +120,26 @@ vi.mock('@/components/documents/AddDocumentDialog', () => ({
   ),
 }));
 
+vi.mock('@/components/documents/DeleteDocumentDialog', () => ({
+  DeleteDocumentDialog: (props: {
+    document: { id: number };
+    onClose: () => void;
+    onDeleted: () => void;
+  }) => (
+    <div data-testid="delete-dialog" data-doc-id={props.document.id}>
+      <button onClick={props.onDeleted}>confirm-delete</button>
+      <button onClick={props.onClose}>cancel-delete</button>
+    </div>
+  ),
+}));
+
+vi.mock('@/utils/documents/download', () => ({
+  downloadDocumentFile: vi.fn(),
+}));
+
 import { useEmbeddingContext } from '@/context/EmbeddingContext';
 import { DocumentsGrid } from '@/components/documents/DocumentsGrid';
+import { downloadDocumentFile } from '@/utils/documents/download';
 
 const BASE_HEADERS = ['ID', 'Name', 'Size (bytes)', 'Type', 'Status'];
 
@@ -157,6 +229,38 @@ function stubFetch(
 function headers(): string[] {
   const value = screen.getByTestId('grid').dataset.colHeaders ?? '';
   return value.length ? value.split('|') : [];
+}
+
+const SINGLE_DOC_PAGE = {
+  total_count: 1,
+  offset: 0,
+  limit: 25,
+  results: [
+    {
+      id: 7,
+      url: 'u',
+      display_name: 'report.pdf',
+      mime_type: 'application/pdf',
+      size: 10,
+      status: 'ready',
+    },
+  ],
+};
+
+/** Stubs a single-document page (so each row-action label is unique), renders, and waits for it. */
+async function renderWithSingleDocument() {
+  stubFetch({ documents: { ok: true, json: async () => SINGLE_DOC_PAGE } });
+  render(<DocumentsGrid />);
+  await waitFor(() =>
+    expect(screen.getByTestId('grid').dataset.rowCount).toBe('1'),
+  );
+}
+
+/** Counts calls to the documents LIST endpoint (excludes id-scoped `/api/documents/{id}/...`). */
+function listCallCount(): number {
+  return (fetch as ReturnType<typeof vi.fn>).mock.calls.filter((call) =>
+    String(call[0]).startsWith('/api/documents?'),
+  ).length;
 }
 
 describe('DocumentsGrid', () => {
@@ -349,5 +453,87 @@ describe('DocumentsGrid', () => {
 
     await waitFor(() => expect(documentCalls()).toBe(before + 1));
     expect(screen.queryByTestId('add-dialog')).not.toBeInTheDocument();
+  });
+
+  it('renders a pinned actions column', async () => {
+    stubFetch();
+
+    render(<DocumentsGrid />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('grid').dataset.rowCount).toBe('2'),
+    );
+    expect(screen.getByTestId('grid').dataset.colIds).toContain('actions');
+  });
+
+  it('reindexes a document and re-fetches the list', async () => {
+    await renderWithSingleDocument();
+    const before = listCallCount();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reindex' }));
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/documents/7/reindex?applicationId=my-app',
+        { method: 'PUT' },
+      ),
+    );
+    await waitFor(() => expect(listCallCount()).toBe(before + 1));
+    expect(await screen.findByTestId('notification')).toHaveAttribute(
+      'data-variant',
+      'success',
+    );
+  });
+
+  it('shows an error notification when reindex fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string) => {
+        if (String(input).startsWith('/api/metadata')) {
+          return Promise.resolve({ ok: true, json: async () => METADATA });
+        }
+        if (String(input).includes('/reindex')) {
+          return Promise.resolve({ ok: false, status: 500 });
+        }
+        return Promise.resolve({ ok: true, json: async () => SINGLE_DOC_PAGE });
+      }),
+    );
+
+    render(<DocumentsGrid />);
+    await waitFor(() =>
+      expect(screen.getByTestId('grid').dataset.rowCount).toBe('1'),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reindex' }));
+
+    expect(await screen.findByTestId('notification')).toHaveAttribute(
+      'data-variant',
+      'error',
+    );
+  });
+
+  it('downloads a document via the download util', async () => {
+    await renderWithSingleDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+
+    expect(downloadDocumentFile).toHaveBeenCalledWith('my-app', 7, 'report.pdf');
+  });
+
+  it('opens the delete confirmation and re-fetches after a delete', async () => {
+    await renderWithSingleDocument();
+    const before = listCallCount();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    const dialog = await screen.findByTestId('delete-dialog');
+    expect(dialog.dataset.docId).toBe('7');
+
+    fireEvent.click(screen.getByRole('button', { name: 'confirm-delete' }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('delete-dialog')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(listCallCount()).toBe(before + 1));
   });
 });

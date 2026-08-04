@@ -7,10 +7,7 @@ vi.mock('ag-grid-react', () => ({
   AgGridReact: (props: Record<string, unknown>) => {
     lastProps = props;
     return (
-      <div
-        data-testid="ag-grid"
-        data-row-model={String(props.rowModelType)}
-      />
+      <div data-testid="ag-grid" data-row-model={String(props.rowModelType)} />
     );
   },
 }));

@@ -354,7 +354,11 @@ describe('DocumentsGrid', () => {
 
     actions.current?.onDownload(DOC);
 
-    expect(downloadDocumentFile).toHaveBeenCalledWith('my-app', 7, 'report.pdf');
+    expect(downloadDocumentFile).toHaveBeenCalledWith(
+      'my-app',
+      7,
+      'report.pdf',
+    );
   });
 
   it('delete action opens the confirmation and refreshes after delete', async () => {

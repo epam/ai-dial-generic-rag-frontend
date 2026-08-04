@@ -21,7 +21,11 @@ describe('buildDocumentsQuery', () => {
 
   it('maps active text filters to <field>=<value>, trimmed', () => {
     const params = buildDocumentsQuery(undefined, {
-      display_name: { filterType: 'text', type: 'contains', filter: '  report ' },
+      display_name: {
+        filterType: 'text',
+        type: 'contains',
+        filter: '  report ',
+      },
       status: { filterType: 'text', type: 'contains', filter: 'ready' },
     });
 

@@ -9,9 +9,17 @@ import type {
   IDatasource,
   IGetRowsParams,
 } from 'ag-grid-community';
-import { ButtonVariant, DialButton } from '@epam/ai-dial-ui-kit';
+import {
+  ButtonVariant,
+  DialButton,
+  DialNotification,
+  NotificationVariant,
+} from '@epam/ai-dial-ui-kit';
 
 import { AddDocumentDialog } from '@/components/documents/AddDocumentDialog';
+import { DeleteDocumentDialog } from '@/components/documents/DeleteDocumentDialog';
+import { DocumentActionsCell } from '@/components/documents/DocumentActionsCell';
+import { DocumentActionsProvider } from '@/components/documents/DocumentActionsContext';
 import { DocumentsFloatingFilter } from '@/components/documents/DocumentsFloatingFilter';
 import { Grid } from '@/components/grid/Grid';
 import { useEmbeddingContext } from '@/context/EmbeddingContext';
@@ -19,6 +27,7 @@ import type { Document, PaginatedDocuments } from '@/types/documents';
 import type { ChannelMetadata, DocumentMetadataSchema } from '@/types/metadata';
 import { channelLogger } from '@/utils/channel/logger';
 import { buildDocumentsQuery } from '@/utils/documents/documents-query';
+import { downloadDocumentFile } from '@/utils/documents/download';
 import { buildMetadataColumns } from '@/utils/documents/metadata-columns';
 
 const PAGE_SIZE = 25;
@@ -33,7 +42,7 @@ const BASE_COLUMN_DEFS: ColDef<Document>[] = [
 ];
 
 // Applied to every column: the DIAL Admin-style search input (a `contains` text filter) and a
-// hover tooltip surfacing the full value when a cell truncates.
+// hover tooltip surfacing the full value when a cell truncates. The actions column opts out below.
 const DEFAULT_COL_DEF: ColDef<Document> = {
   resizable: true,
   sortable: true,
@@ -41,6 +50,22 @@ const DEFAULT_COL_DEF: ColDef<Document> = {
   floatingFilter: true,
   floatingFilterComponent: DocumentsFloatingFilter,
   tooltipValueGetter: (params) => String(params.value ?? ''),
+};
+
+// Pinned rightmost kebab (⋮) menu column: Download / Reindex / Delete. Non-interactive as a
+// column (no search input, sort, filter, or resize).
+const ACTIONS_COLUMN: ColDef<Document> = {
+  colId: 'actions',
+  headerName: '',
+  cellRenderer: DocumentActionsCell,
+  pinned: 'right',
+  width: 56,
+  minWidth: 56,
+  maxWidth: 64,
+  sortable: false,
+  filter: false,
+  floatingFilter: false,
+  resizable: false,
 };
 
 // Infinite Row Model tuning: one block per page, a bounded cache, and a small debounce so rapid
@@ -79,6 +104,11 @@ export function DocumentsGrid() {
   const [metadataSchema, setMetadataSchema] =
     useState<DocumentMetadataSchema | null>(null);
   const [isAddOpen, setAddOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Document | null>(null);
+  const [notification, setNotification] = useState<{
+    variant: NotificationVariant;
+    message: string;
+  } | null>(null);
   const gridApiRef = useRef<GridApi<Document> | null>(null);
 
   // Load the document metadata schema once per application; the extra columns (filterable
@@ -119,10 +149,90 @@ export function DocumentsGrid() {
     };
   }, [applicationId]);
 
+  // Auto-dismiss the transient row-action notification.
+  useEffect(() => {
+    if (!notification) {
+      return;
+    }
+    const timer = setTimeout(() => setNotification(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notification]);
+
+  // Re-request the loaded blocks (after upload / reindex / delete) so the grid reflects changes.
+  const refreshGrid = useCallback(() => {
+    gridApiRef.current?.refreshInfiniteCache();
+  }, []);
+
+  const onDownload = useCallback(
+    (targetDocument: Document) => {
+      if (!applicationId) {
+        return;
+      }
+      downloadDocumentFile(
+        applicationId,
+        targetDocument.id,
+        targetDocument.display_name,
+      );
+    },
+    [applicationId],
+  );
+
+  const onReindex = useCallback(
+    async (targetDocument: Document) => {
+      if (!applicationId) {
+        return;
+      }
+      const params = new URLSearchParams({ applicationId });
+      try {
+        const response = await fetch(
+          `/api/documents/${targetDocument.id}/reindex?${params.toString()}`,
+          { method: 'PUT' },
+        );
+        if (!response.ok) {
+          channelLogger.warn('failed to reindex document', {
+            id: targetDocument.id,
+            status: response.status,
+          });
+          setNotification({
+            variant: NotificationVariant.Error,
+            message: `Failed to reindex "${targetDocument.display_name}".`,
+          });
+          return;
+        }
+        setNotification({
+          variant: NotificationVariant.Success,
+          message: `Reindex started for "${targetDocument.display_name}".`,
+        });
+        // The row status flips to indexing/processing; reload the blocks to reflect it.
+        refreshGrid();
+      } catch (error: unknown) {
+        channelLogger.warn('failed to reindex document', {
+          id: targetDocument.id,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+        setNotification({
+          variant: NotificationVariant.Error,
+          message: `Failed to reindex "${targetDocument.display_name}".`,
+        });
+      }
+    },
+    [applicationId, refreshGrid],
+  );
+
+  const onRequestDelete = useCallback((targetDocument: Document) => {
+    setPendingDelete(targetDocument);
+  }, []);
+
+  const documentActions = useMemo(
+    () => ({ onDownload, onReindex, onRequestDelete }),
+    [onDownload, onReindex, onRequestDelete],
+  );
+
   const columnDefs = useMemo<ColDef<Document>[]>(
     () => [
       ...BASE_COLUMN_DEFS,
       ...buildMetadataColumns(metadataSchema ?? undefined),
+      ACTIONS_COLUMN,
     ],
     [metadataSchema],
   );
@@ -167,9 +277,8 @@ export function DocumentsGrid() {
 
   const handleUploaded = useCallback(() => {
     setAddOpen(false);
-    // Re-request the loaded blocks so the new document appears.
-    gridApiRef.current?.refreshInfiniteCache();
-  }, []);
+    refreshGrid();
+  }, [refreshGrid]);
 
   return (
     <div className="flex h-full min-h-0 flex-col p-4">
@@ -185,16 +294,18 @@ export function DocumentsGrid() {
           />
         </div>
         <div className="min-h-0 flex-1">
-          <Grid<Document>
-            columnDefs={columnDefs}
-            datasource={datasource}
-            defaultColDef={DEFAULT_COL_DEF}
-            getRowId={getDocumentRowId}
-            additionalGridOptions={GRID_OPTIONS}
-            onGridReady={handleGridReady}
-            emptyTitle="No documents"
-            emptyDescription="This channel has no documents yet."
-          />
+          <DocumentActionsProvider value={documentActions}>
+            <Grid<Document>
+              columnDefs={columnDefs}
+              datasource={datasource}
+              defaultColDef={DEFAULT_COL_DEF}
+              getRowId={getDocumentRowId}
+              additionalGridOptions={GRID_OPTIONS}
+              onGridReady={handleGridReady}
+              emptyTitle="No documents"
+              emptyDescription="This channel has no documents yet."
+            />
+          </DocumentActionsProvider>
         </div>
       </div>
       {isAddOpen && applicationId && (
@@ -204,6 +315,27 @@ export function DocumentsGrid() {
           onClose={() => setAddOpen(false)}
           onUploaded={handleUploaded}
         />
+      )}
+      {pendingDelete && applicationId && (
+        <DeleteDocumentDialog
+          applicationId={applicationId}
+          document={pendingDelete}
+          onClose={() => setPendingDelete(null)}
+          onDeleted={() => {
+            setPendingDelete(null);
+            refreshGrid();
+          }}
+        />
+      )}
+      {notification && (
+        <div className="fixed right-4 bottom-4 z-50 w-80 max-w-[90vw]">
+          <DialNotification
+            variant={notification.variant}
+            message={notification.message}
+            closable
+            onClose={() => setNotification(null)}
+          />
+        </div>
       )}
     </div>
   );

@@ -9,6 +9,8 @@ import type { GridApi, IDatasource, IGetRowsParams } from 'ag-grid-community';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { Document } from '@/types/documents';
+
 vi.mock('@/context/EmbeddingContext', () => ({
   useEmbeddingContext: vi.fn(),
 }));
@@ -24,9 +26,21 @@ vi.mock('@epam/ai-dial-ui-kit', () => ({
     </button>
   ),
   ButtonVariant: { Primary: 'primary' },
+  NotificationVariant: {
+    Info: 'info',
+    Success: 'success',
+    Warning: 'warning',
+    Error: 'error',
+    Loading: 'loading',
+  },
+  DialNotification: (props: { variant?: string; message: ReactNode }) => (
+    <div data-testid="notification" data-variant={props.variant}>
+      {props.message}
+    </div>
+  ),
 }));
 
-// Capture what DocumentsGrid passes to the grid wrapper so tests can drive the datasource + api.
+// Capture what DocumentsGrid passes to the ag-grid wrapper (datasource, onGridReady, columns).
 interface CapturedGridProps {
   columnDefs?: { colId?: string; field?: string; headerName?: string }[];
   datasource?: IDatasource;
@@ -40,7 +54,11 @@ vi.mock('@/components/grid/Grid', () => ({
       <div
         data-testid="grid"
         data-has-datasource={String(!!props.datasource)}
+        data-col-ids={(props.columnDefs ?? [])
+          .map((col) => col.colId ?? col.field ?? '')
+          .join('|')}
         data-col-headers={(props.columnDefs ?? [])
+          .filter((col) => col.colId !== 'actions')
           .map((col) => col.headerName ?? col.field ?? col.colId ?? '')
           .join('|')}
       />
@@ -48,6 +66,26 @@ vi.mock('@/components/grid/Grid', () => ({
   },
 }));
 
+// Capture the row-action handlers the grid provides via context. The actions cell that consumes
+// them is unit-tested separately in DocumentActionsCell.test.
+interface DocumentActions {
+  onDownload: (document: Document) => void;
+  onReindex: (document: Document) => void;
+  onRequestDelete: (document: Document) => void;
+}
+const actions: { current?: DocumentActions } = {};
+vi.mock('@/components/documents/DocumentActionsContext', () => ({
+  DocumentActionsProvider: (props: {
+    value: DocumentActions;
+    children: ReactNode;
+  }) => {
+    actions.current = props.value;
+    return <>{props.children}</>;
+  },
+  useDocumentActions: vi.fn(),
+}));
+
+// Stub the dialogs so the grid test exercises wiring, not the modal internals.
 vi.mock('@/components/documents/AddDocumentDialog', () => ({
   AddDocumentDialog: (props: {
     applicationId: string;
@@ -61,30 +99,43 @@ vi.mock('@/components/documents/AddDocumentDialog', () => ({
   ),
 }));
 
+vi.mock('@/components/documents/DeleteDocumentDialog', () => ({
+  DeleteDocumentDialog: (props: {
+    document: { id: number };
+    onClose: () => void;
+    onDeleted: () => void;
+  }) => (
+    <div data-testid="delete-dialog" data-doc-id={props.document.id}>
+      <button onClick={props.onDeleted}>confirm-delete</button>
+      <button onClick={props.onClose}>cancel-delete</button>
+    </div>
+  ),
+}));
+
+vi.mock('@/utils/documents/download', () => ({
+  downloadDocumentFile: vi.fn(),
+}));
+
 import { useEmbeddingContext } from '@/context/EmbeddingContext';
 import { DocumentsGrid } from '@/components/documents/DocumentsGrid';
+import { downloadDocumentFile } from '@/utils/documents/download';
+
+const DOC: Document = {
+  id: 7,
+  url: 'u',
+  display_name: 'report.pdf',
+  mime_type: 'application/pdf',
+  size: 10,
+  status: 'ready',
+};
 
 const DOCUMENTS_PAGE = {
   total_count: 2,
   offset: 0,
   limit: 25,
   results: [
-    {
-      id: 1,
-      url: 'u1',
-      display_name: 'a.pdf',
-      mime_type: 'application/pdf',
-      size: 10,
-      status: 'ready',
-    },
-    {
-      id: 2,
-      url: 'u2',
-      display_name: 'b.pdf',
-      mime_type: 'application/pdf',
-      size: 20,
-      status: 'error',
-    },
+    { ...DOC, id: 1, display_name: 'a.pdf' },
+    { ...DOC, id: 2, display_name: 'b.pdf' },
   ],
 };
 
@@ -104,11 +155,15 @@ type MockResponse = {
   json?: () => Promise<unknown>;
 };
 
-/** Routes fetch by URL: `/api/metadata` → schema, everything else → the documents page. */
+/**
+ * Routes fetch by URL: `/api/metadata` → schema; id-scoped `…/reindex` → the reindex override
+ * (default OK); everything else → the documents page.
+ */
 function stubFetch(
   overrides: {
     documents?: MockResponse | Error;
     metadata?: MockResponse | Error;
+    reindex?: MockResponse | Error;
   } = {},
 ) {
   const documents = overrides.documents ?? {
@@ -119,13 +174,20 @@ function stubFetch(
     ok: true,
     json: async () => METADATA,
   };
+  const reindex = overrides.reindex ?? { ok: true, json: async () => DOC };
 
   vi.stubGlobal(
     'fetch',
     vi.fn((input: string) => {
-      const route = String(input).startsWith('/api/metadata')
-        ? metadata
-        : documents;
+      const url = String(input);
+      let route: MockResponse | Error;
+      if (url.startsWith('/api/metadata')) {
+        route = metadata;
+      } else if (url.includes('/reindex')) {
+        route = reindex;
+      } else {
+        route = documents;
+      }
       return route instanceof Error
         ? Promise.reject(route)
         : Promise.resolve(route);
@@ -167,6 +229,7 @@ describe('DocumentsGrid', () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     grid.props = undefined;
+    actions.current = undefined;
   });
 
   it('renders the Documents title and Add button', () => {
@@ -180,24 +243,24 @@ describe('DocumentsGrid', () => {
     expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
   });
 
-  it('provides a datasource and appends filterable metadata columns', async () => {
+  it('provides a datasource with the actions column and filterable metadata columns', async () => {
     stubFetch();
 
     render(<DocumentsGrid />);
 
     expect(screen.getByTestId('grid').dataset.hasDatasource).toBe('true');
+    expect(screen.getByTestId('grid').dataset.colIds).toContain('actions');
     await waitFor(() =>
       expect(screen.getByTestId('grid').dataset.colHeaders).toContain(
         'Publication Type',
       ),
     );
-    // A non-filterable metadata property is not added as a column.
     expect(screen.getByTestId('grid').dataset.colHeaders).not.toContain(
       'Publication Title',
     );
   });
 
-  it('does not provide a datasource when applicationId is absent', () => {
+  it('provides no datasource and disables Add when applicationId is absent', () => {
     mockEmbedding(null);
     stubFetch();
 
@@ -251,13 +314,74 @@ describe('DocumentsGrid', () => {
     expect(params.successCallback).not.toHaveBeenCalled();
   });
 
+  it('reindex action PUTs, shows a success notification, and refreshes', async () => {
+    stubFetch();
+    render(<DocumentsGrid />);
+
+    const api = { refreshInfiniteCache: vi.fn() } as unknown as GridApi;
+    grid.props?.onGridReady?.(api);
+
+    actions.current?.onReindex(DOC);
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/documents/7/reindex?applicationId=my-app',
+        { method: 'PUT' },
+      ),
+    );
+    expect(await screen.findByTestId('notification')).toHaveAttribute(
+      'data-variant',
+      'success',
+    );
+    expect(api.refreshInfiniteCache).toHaveBeenCalledTimes(1);
+  });
+
+  it('reindex action shows an error notification on failure', async () => {
+    stubFetch({ reindex: { ok: false, status: 500 } });
+    render(<DocumentsGrid />);
+
+    actions.current?.onReindex(DOC);
+
+    expect(await screen.findByTestId('notification')).toHaveAttribute(
+      'data-variant',
+      'error',
+    );
+  });
+
+  it('download action calls the download util', () => {
+    stubFetch();
+    render(<DocumentsGrid />);
+
+    actions.current?.onDownload(DOC);
+
+    expect(downloadDocumentFile).toHaveBeenCalledWith('my-app', 7, 'report.pdf');
+  });
+
+  it('delete action opens the confirmation and refreshes after delete', async () => {
+    stubFetch();
+    render(<DocumentsGrid />);
+
+    const api = { refreshInfiniteCache: vi.fn() } as unknown as GridApi;
+    grid.props?.onGridReady?.(api);
+
+    actions.current?.onRequestDelete(DOC);
+
+    const dialog = await screen.findByTestId('delete-dialog');
+    expect(dialog.dataset.docId).toBe('7');
+
+    fireEvent.click(screen.getByRole('button', { name: 'confirm-delete' }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('delete-dialog')).not.toBeInTheDocument(),
+    );
+    expect(api.refreshInfiniteCache).toHaveBeenCalledTimes(1);
+  });
+
   it('refreshes the grid after an upload', async () => {
     stubFetch();
     render(<DocumentsGrid />);
 
-    const api = {
-      refreshInfiniteCache: vi.fn(),
-    } as unknown as GridApi;
+    const api = { refreshInfiniteCache: vi.fn() } as unknown as GridApi;
     grid.props?.onGridReady?.(api);
 
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));

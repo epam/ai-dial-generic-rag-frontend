@@ -76,6 +76,7 @@ describe('GET /api/documents', () => {
       applicationId: 'my-app',
       offset: 0,
       limit: 25,
+      searchParams: {},
       accessToken: 'token-123',
     });
     expect(response.status).toBe(200);
@@ -97,7 +98,36 @@ describe('GET /api/documents', () => {
       applicationId: 'my-app',
       offset: 0,
       limit: 25,
+      searchParams: {},
       accessToken: undefined,
+    });
+  });
+
+  it('forwards sort/filter query params to listDocuments', async () => {
+    vi.mocked(getAccessToken).mockResolvedValue('token-123');
+    vi.mocked(listDocuments).mockResolvedValue({
+      total_count: 0,
+      offset: 0,
+      limit: 25,
+      results: [],
+    });
+
+    await GET(
+      makeRequest(
+        '?applicationId=my-app&offset=0&limit=25&sort=display_name&order=asc&display_name=report',
+      ),
+    );
+
+    expect(listDocuments).toHaveBeenCalledWith({
+      applicationId: 'my-app',
+      offset: 0,
+      limit: 25,
+      searchParams: {
+        sort: 'display_name',
+        order: 'asc',
+        display_name: 'report',
+      },
+      accessToken: 'token-123',
     });
   });
 

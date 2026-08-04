@@ -1,26 +1,30 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import type { ColDef, GridOptions } from 'ag-grid-community';
-import {
-  ButtonVariant,
-  DialButton,
-  DialGrid,
-  DialPagination,
-} from '@epam/ai-dial-ui-kit';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  ColDef,
+  GetRowIdParams,
+  GridApi,
+  GridOptions,
+  IDatasource,
+  IGetRowsParams,
+} from 'ag-grid-community';
+import { ButtonVariant, DialButton } from '@epam/ai-dial-ui-kit';
 
 import { AddDocumentDialog } from '@/components/documents/AddDocumentDialog';
 import { DocumentsFloatingFilter } from '@/components/documents/DocumentsFloatingFilter';
+import { Grid } from '@/components/grid/Grid';
 import { useEmbeddingContext } from '@/context/EmbeddingContext';
 import type { Document, PaginatedDocuments } from '@/types/documents';
 import type { ChannelMetadata, DocumentMetadataSchema } from '@/types/metadata';
 import { channelLogger } from '@/utils/channel/logger';
+import { buildDocumentsQuery } from '@/utils/documents/documents-query';
 import { buildMetadataColumns } from '@/utils/documents/metadata-columns';
 
 const PAGE_SIZE = 25;
 
 const BASE_COLUMN_DEFS: ColDef<Document>[] = [
-  // An explicit minWidth is required to override DialGrid's inherited 150px defaultColDef floor.
+  // An explicit minWidth keeps these below the shared default floor for narrow columns.
   { field: 'id', headerName: 'ID', width: 88, minWidth: 72, maxWidth: 120 },
   { field: 'display_name', headerName: 'Name', flex: 1 },
   { field: 'size', headerName: 'Size (bytes)', width: 140 },
@@ -28,16 +32,27 @@ const BASE_COLUMN_DEFS: ColDef<Document>[] = [
   { field: 'status', headerName: 'Status', width: 140 },
 ];
 
-// Match DIAL Admin's compact header (30px vs DialGrid's default 40px). additionalGridOptions is
-// merged last, so this overrides the height without replacing DialGrid's defaultColDef.
-const GRID_OPTIONS: GridOptions<Document> = { headerHeight: 30 };
+// Applied to every column: the DIAL Admin-style search input (a `contains` text filter) and a
+// hover tooltip surfacing the full value when a cell truncates.
+const DEFAULT_COL_DEF: ColDef<Document> = {
+  resizable: true,
+  sortable: true,
+  filter: 'agTextColumnFilter',
+  floatingFilter: true,
+  floatingFilterComponent: DocumentsFloatingFilter,
+  tooltipValueGetter: (params) => String(params.value ?? ''),
+};
 
-function fetchKey(
-  applicationId: string,
-  page: number,
-  refreshTick: number,
-): string {
-  return `${applicationId}:${page}:${refreshTick}`;
+// Infinite Row Model tuning: one block per page, a bounded cache, and a small debounce so rapid
+// scrolling doesn't fire a request per row.
+const GRID_OPTIONS: GridOptions<Document> = {
+  cacheBlockSize: PAGE_SIZE,
+  maxBlocksInCache: 40,
+  blockLoadDebounceMillis: 200,
+};
+
+function getDocumentRowId(params: GetRowIdParams<Document>): string {
+  return String(params.data.id);
 }
 
 /** Minimal inline "+" glyph for the Add button; no icon package is bundled in this app. */
@@ -61,13 +76,10 @@ function PlusIcon() {
 
 export function DocumentsGrid() {
   const { id: applicationId } = useEmbeddingContext();
-  const [page, setPage] = useState(1);
-  const [data, setData] = useState<PaginatedDocuments | null>(null);
-  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [metadataSchema, setMetadataSchema] =
     useState<DocumentMetadataSchema | null>(null);
   const [isAddOpen, setAddOpen] = useState(false);
-  const [refreshTick, setRefreshTick] = useState(0);
+  const gridApiRef = useRef<GridApi<Document> | null>(null);
 
   // Load the document metadata schema once per application; the extra columns (filterable
   // string/date properties, appended after the fixed ones) are derived from it in the memo below.
@@ -107,73 +119,57 @@ export function DocumentsGrid() {
     };
   }, [applicationId]);
 
-  useEffect(() => {
-    if (!applicationId) {
-      return;
-    }
-
-    let cancelled = false;
-    const key = fetchKey(applicationId, page, refreshTick);
-    const offset = (page - 1) * PAGE_SIZE;
-    const params = new URLSearchParams({
-      applicationId,
-      offset: String(offset),
-      limit: String(PAGE_SIZE),
-    });
-
-    fetch(`/api/documents?${params.toString()}`)
-      .then(async (response) => {
-        if (!response.ok) {
-          if (!cancelled) {
-            setData(null);
-          }
-          return;
-        }
-
-        const json = (await response.json()) as PaginatedDocuments;
-        if (!cancelled) {
-          setData(json);
-        }
-      })
-      .catch((error: unknown) => {
-        channelLogger.warn('failed to load documents unexpectedly', {
-          reason: error instanceof Error ? error.message : String(error),
-        });
-        if (!cancelled) {
-          setData(null);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoadedKey(key);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [applicationId, page, refreshTick]);
-
   const columnDefs = useMemo<ColDef<Document>[]>(
-    () =>
-      [
-        ...BASE_COLUMN_DEFS,
-        ...buildMetadataColumns(metadataSchema ?? undefined),
-      ].map((column) => ({
-        ...column,
-        // DialGrid owns its defaultColDef, so the DIAL Admin-style search input is set per column.
-        floatingFilterComponent: DocumentsFloatingFilter,
-      })),
+    () => [
+      ...BASE_COLUMN_DEFS,
+      ...buildMetadataColumns(metadataSchema ?? undefined),
+    ],
     [metadataSchema],
   );
 
-  const loading = applicationId
-    ? loadedKey !== fetchKey(applicationId, page, refreshTick)
-    : false;
+  // The infinite datasource: ag-grid requests blocks by row range and (re)requests them whenever
+  // the sort/filter model changes, so getRows forwards startRow/endRow → offset/limit plus the
+  // current sort/filter as query params.
+  const datasource = useMemo<IDatasource | undefined>(() => {
+    if (!applicationId) {
+      return undefined;
+    }
 
-  const totalPages = data
-    ? Math.max(1, Math.ceil(data.total_count / PAGE_SIZE))
-    : 1;
+    return {
+      getRows: (params: IGetRowsParams) => {
+        const query = buildDocumentsQuery(params.sortModel, params.filterModel);
+        query.set('applicationId', applicationId);
+        query.set('offset', String(params.startRow));
+        query.set('limit', String(params.endRow - params.startRow));
+
+        fetch(`/api/documents?${query.toString()}`)
+          .then(async (response) => {
+            if (!response.ok) {
+              params.failCallback();
+              return;
+            }
+            const json = (await response.json()) as PaginatedDocuments;
+            params.successCallback(json.results, json.total_count);
+          })
+          .catch((error: unknown) => {
+            channelLogger.warn('failed to load documents', {
+              reason: error instanceof Error ? error.message : String(error),
+            });
+            params.failCallback();
+          });
+      },
+    };
+  }, [applicationId]);
+
+  const handleGridReady = useCallback((api: GridApi<Document>) => {
+    gridApiRef.current = api;
+  }, []);
+
+  const handleUploaded = useCallback(() => {
+    setAddOpen(false);
+    // Re-request the loaded blocks so the new document appears.
+    gridApiRef.current?.refreshInfiniteCache();
+  }, []);
 
   return (
     <div className="flex h-full min-h-0 flex-col p-4">
@@ -189,20 +185,15 @@ export function DocumentsGrid() {
           />
         </div>
         <div className="min-h-0 flex-1">
-          <DialGrid<Document>
+          <Grid<Document>
             columnDefs={columnDefs}
-            rowData={data?.results ?? []}
-            loading={loading}
+            datasource={datasource}
+            defaultColDef={DEFAULT_COL_DEF}
+            getRowId={getDocumentRowId}
             additionalGridOptions={GRID_OPTIONS}
-            emptyStateTitle="No documents"
-            emptyStateDescription="This channel has no documents yet."
-          />
-        </div>
-        <div className="flex justify-center">
-          <DialPagination
-            page={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
+            onGridReady={handleGridReady}
+            emptyTitle="No documents"
+            emptyDescription="This channel has no documents yet."
           />
         </div>
       </div>
@@ -211,11 +202,7 @@ export function DocumentsGrid() {
           applicationId={applicationId}
           schema={metadataSchema}
           onClose={() => setAddOpen(false)}
-          onUploaded={() => {
-            setAddOpen(false);
-            setPage(1);
-            setRefreshTick((tick) => tick + 1);
-          }}
+          onUploaded={handleUploaded}
         />
       )}
     </div>

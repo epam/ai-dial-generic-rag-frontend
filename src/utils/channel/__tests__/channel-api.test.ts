@@ -7,6 +7,7 @@ import {
   buildMetadataUrl,
   deleteDocument,
   downloadDocument,
+  exportDocument,
   getMetadata,
   listDocuments,
   reindexDocument,
@@ -457,6 +458,38 @@ describe('single-document operations', () => {
     });
 
     const error = await downloadDocument({
+      applicationId: 'my-app',
+      id: 7,
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(UpstreamRequestError);
+    expect((error as UpstreamRequestError).status).toBe(502);
+  });
+
+  it('exportDocument returns the raw bundle response for streaming', async () => {
+    const response = { ok: true, status: 200, body: 'bundle' };
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(response);
+
+    const result = await exportDocument({
+      applicationId: 'my-app',
+      id: 7,
+      accessToken: 'token-123',
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents/7/export',
+      { headers: { Authorization: 'Bearer token-123' } },
+    );
+    expect(result).toBe(response);
+  });
+
+  it('exportDocument throws an UpstreamRequestError on a non-OK status', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 502,
+    });
+
+    const error = await exportDocument({
       applicationId: 'my-app',
       id: 7,
     }).catch((e: unknown) => e);

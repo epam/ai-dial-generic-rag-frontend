@@ -366,7 +366,7 @@ describe('DocumentsGrid', () => {
     );
   });
 
-  it('export action calls the export util with a .bundle filename', () => {
+  it('export action calls the export util with the fallback filename', () => {
     stubFetch();
     render(<DocumentsGrid />);
 

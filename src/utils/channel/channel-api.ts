@@ -42,10 +42,13 @@ export function buildDocumentsListUrl(
   applicationId: string,
   offset: number,
   limit: number,
+  searchParams?: Record<string, string>,
 ): string {
   return buildChannelUrl(applicationId, 'documents', {
     offset: String(offset),
     limit: String(limit),
+    // Server-side sort/filter params (e.g. `sort`, `order`, per-field filters) forwarded verbatim.
+    ...searchParams,
   });
 }
 
@@ -123,11 +126,18 @@ export async function listDocuments(params: {
   applicationId: string;
   offset: number;
   limit: number;
+  /** Extra server-side query params (sort/order/filters), forwarded to the channel. */
+  searchParams?: Record<string, string>;
   accessToken?: string;
 }): Promise<PaginatedDocuments> {
-  const { applicationId, offset, limit, accessToken } = params;
-  const url = buildDocumentsListUrl(applicationId, offset, limit);
-  channelLogger.debug('fetching documents', { applicationId, offset, limit });
+  const { applicationId, offset, limit, searchParams, accessToken } = params;
+  const url = buildDocumentsListUrl(applicationId, offset, limit, searchParams);
+  channelLogger.debug('fetching documents', {
+    applicationId,
+    offset,
+    limit,
+    searchParams,
+  });
   return channelFetch<PaginatedDocuments>(url, accessToken);
 }
 

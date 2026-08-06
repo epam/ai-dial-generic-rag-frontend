@@ -35,6 +35,18 @@ describe('buildDocumentsListUrl', () => {
     );
   });
 
+  it('appends extra search params (sort/filter) after offset/limit', () => {
+    expect(
+      buildDocumentsListUrl('my-app', 0, 25, {
+        sort: 'display_name',
+        order: 'asc',
+        display_name: 'report',
+      }),
+    ).toBe(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents?offset=0&limit=25&sort=display_name&order=asc&display_name=report',
+    );
+  });
+
   it('throws when DIAL_API_URL is not configured', () => {
     vi.stubEnv('DIAL_API_URL', '');
     expect(() => buildDocumentsListUrl('my-app', 0, 25)).toThrow(
@@ -118,6 +130,26 @@ describe('listDocuments', () => {
 
     expect(fetch).toHaveBeenCalledWith(
       'https://core.example.com/v1/deployments/my-app/route/channel/documents?offset=0&limit=25',
+      { headers: {} },
+    );
+  });
+
+  it('appends search params (sort/filter) to the request URL', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ total_count: 0, offset: 0, limit: 25, results: [] }),
+    });
+
+    await listDocuments({
+      applicationId: 'my-app',
+      offset: 0,
+      limit: 25,
+      searchParams: { sort: 'display_name', order: 'asc' },
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents?offset=0&limit=25&sort=display_name&order=asc',
       { headers: {} },
     );
   });

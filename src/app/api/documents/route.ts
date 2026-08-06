@@ -11,6 +11,10 @@ import { channelLogger } from '@/utils/channel/logger';
 const DEFAULT_OFFSET = 0;
 const DEFAULT_LIMIT = 25;
 
+// Query params the GET handler consumes itself; everything else is forwarded to the channel as
+// server-side sort/filter params.
+const RESERVED_LIST_PARAMS = new Set(['applicationId', 'offset', 'limit']);
+
 // Document uploads can take a while to stream to DIAL Core, so allow more than the default budget.
 export const maxDuration = 45;
 
@@ -28,12 +32,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const offset = Number(searchParams.get('offset') ?? DEFAULT_OFFSET);
   const limit = Number(searchParams.get('limit') ?? DEFAULT_LIMIT);
 
+  // Pass any sort/filter params straight through to the channel.
+  const forwardedParams: Record<string, string> = {};
+  for (const [key, value] of searchParams.entries()) {
+    if (!RESERVED_LIST_PARAMS.has(key)) {
+      forwardedParams[key] = value;
+    }
+  }
+
   try {
     const accessToken = await getAccessToken(request);
     const documents = await listDocuments({
       applicationId,
       offset,
       limit,
+      searchParams: forwardedParams,
       accessToken,
     });
     return NextResponse.json(documents);

@@ -70,6 +70,7 @@ vi.mock('@/components/grid/Grid', () => ({
 // them is unit-tested separately in DocumentActionsCell.test.
 interface DocumentActions {
   onDownload: (document: Document) => void;
+  onExport: (document: Document) => void;
   onReindex: (document: Document) => void;
   onRequestDelete: (document: Document) => void;
 }
@@ -114,11 +115,15 @@ vi.mock('@/components/documents/DeleteDocumentDialog', () => ({
 
 vi.mock('@/utils/documents/download', () => ({
   downloadDocumentFile: vi.fn(),
+  exportDocumentBundle: vi.fn(),
 }));
 
 import { useEmbeddingContext } from '@/context/EmbeddingContext';
 import { DocumentsGrid } from '@/components/documents/DocumentsGrid';
-import { downloadDocumentFile } from '@/utils/documents/download';
+import {
+  downloadDocumentFile,
+  exportDocumentBundle,
+} from '@/utils/documents/download';
 
 const DOC: Document = {
   id: 7,
@@ -358,6 +363,19 @@ describe('DocumentsGrid', () => {
       'my-app',
       7,
       'report.pdf',
+    );
+  });
+
+  it('export action calls the export util with the fallback filename', () => {
+    stubFetch();
+    render(<DocumentsGrid />);
+
+    actions.current?.onExport(DOC);
+
+    expect(exportDocumentBundle).toHaveBeenCalledWith(
+      'my-app',
+      7,
+      'report.pdf.msgpack',
     );
   });
 

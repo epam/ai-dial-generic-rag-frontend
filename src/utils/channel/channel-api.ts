@@ -206,3 +206,15 @@ export async function downloadDocument(params: {
   channelLogger.debug('downloading document', { applicationId, id });
   return channelRequest(url, accessToken);
 }
+
+/** Exports a document (content + indexes) as a raw streaming {@link Response} bundle to download. */
+export async function exportDocument(params: {
+  applicationId: string;
+  id: number;
+  accessToken?: string;
+}): Promise<Response> {
+  const { applicationId, id, accessToken } = params;
+  const url = buildDocumentUrl(applicationId, id, 'export');
+  channelLogger.debug('exporting document', { applicationId, id });
+  return channelRequest(url, accessToken);
+}

@@ -57,16 +57,19 @@ describe('DocumentActionsCell', () => {
   it('invokes the matching action handler with the row document', () => {
     const actions: DocumentActions = {
       onDownload: vi.fn(),
+      onExport: vi.fn(),
       onReindex: vi.fn(),
       onRequestDelete: vi.fn(),
     };
     renderCell(actions, DOC);
 
     fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
     fireEvent.click(screen.getByRole('button', { name: 'Reindex' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
     expect(actions.onDownload).toHaveBeenCalledWith(DOC);
+    expect(actions.onExport).toHaveBeenCalledWith(DOC);
     expect(actions.onReindex).toHaveBeenCalledWith(DOC);
     expect(actions.onRequestDelete).toHaveBeenCalledWith(DOC);
   });
@@ -75,6 +78,7 @@ describe('DocumentActionsCell', () => {
     renderCell(
       {
         onDownload: vi.fn(),
+        onExport: vi.fn(),
         onReindex: vi.fn(),
         onRequestDelete: vi.fn(),
       },

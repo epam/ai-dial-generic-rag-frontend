@@ -27,7 +27,10 @@ import type { Document, PaginatedDocuments } from '@/types/documents';
 import type { ChannelMetadata, DocumentMetadataSchema } from '@/types/metadata';
 import { channelLogger } from '@/utils/channel/logger';
 import { buildDocumentsQuery } from '@/utils/documents/documents-query';
-import { downloadDocumentFile } from '@/utils/documents/download';
+import {
+  downloadDocumentFile,
+  exportDocumentBundle,
+} from '@/utils/documents/download';
 import { buildMetadataColumns } from '@/utils/documents/metadata-columns';
 
 const PAGE_SIZE = 25;
@@ -177,6 +180,20 @@ export function DocumentsGrid() {
     [applicationId],
   );
 
+  const onExport = useCallback(
+    (targetDocument: Document) => {
+      if (!applicationId) {
+        return;
+      }
+      exportDocumentBundle(
+        applicationId,
+        targetDocument.id,
+        `${targetDocument.display_name}.msgpack`,
+      );
+    },
+    [applicationId],
+  );
+
   const onReindex = useCallback(
     async (targetDocument: Document) => {
       if (!applicationId) {
@@ -224,8 +241,8 @@ export function DocumentsGrid() {
   }, []);
 
   const documentActions = useMemo(
-    () => ({ onDownload, onReindex, onRequestDelete }),
-    [onDownload, onReindex, onRequestDelete],
+    () => ({ onDownload, onExport, onReindex, onRequestDelete }),
+    [onDownload, onExport, onReindex, onRequestDelete],
   );
 
   const columnDefs = useMemo<ColDef<Document>[]>(

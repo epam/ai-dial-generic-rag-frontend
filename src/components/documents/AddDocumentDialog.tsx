@@ -12,6 +12,7 @@ import {
 } from '@epam/ai-dial-ui-kit';
 import type { JsonSchema } from '@epam/ai-dial-ui-kit';
 
+import { renderDateField } from '@/components/documents/render-date-field';
 import type { Document } from '@/types/documents';
 import type { DocumentMetadataSchema } from '@/types/metadata';
 import { channelLogger } from '@/utils/channel/logger';
@@ -137,6 +138,7 @@ export function AddDocumentDialog({
               schema={schema as unknown as JsonSchema}
               onDefaultValues={setMetadata}
               onChange={setMetadata}
+              renderField={renderDateField}
             />
           </section>
         )}

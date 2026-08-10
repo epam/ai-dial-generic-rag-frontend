@@ -3,8 +3,8 @@
 import { useEmbeddingBridge } from '@/hooks/use-embedding-bridge';
 
 /**
- * Hosts the `Suspense` boundary `useEmbeddingBridge` requires (via `useSearchParams`) and
- * renders nothing itself.
+ * Renders nothing itself; requires an ancestor `Suspense` boundary for `useEmbeddingBridge`'s
+ * `useSearchParams` usage — provided in the root layout.
  */
 export function EmbeddingBridge() {
   useEmbeddingBridge();

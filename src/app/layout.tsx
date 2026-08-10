@@ -6,6 +6,8 @@ import '@/styles/globals.css';
 import { EmbeddingBridge } from '@/components/embedding/EmbeddingBridge';
 import { EmbeddingContextProvider } from '@/context/EmbeddingContext';
 import SessionProvider from '@/context/SessionProvider';
+import { ThemeContextProvider } from '@/context/ThemeContext';
+import { getThemes } from '@/utils/themes/themes-api';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -21,11 +23,13 @@ export const metadata: Metadata = {
   title: 'ai-dial-generic-rag-frontend',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const themes = await getThemes();
+
   return (
     <html
       lang="en"
@@ -37,9 +41,11 @@ export default function RootLayout({
           applicationName={process.env.DIAL_APPLICATION_NAME}
         >
           <Suspense fallback={null}>
-            <EmbeddingBridge />
+            <ThemeContextProvider themes={themes}>
+              <EmbeddingBridge />
+              <SessionProvider>{children}</SessionProvider>
+            </ThemeContextProvider>
           </Suspense>
-          <SessionProvider>{children}</SessionProvider>
         </EmbeddingContextProvider>
       </body>
     </html>

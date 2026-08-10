@@ -11,7 +11,7 @@ import {
 const DATE_FORMATS = new Set(['date', 'date-time']);
 
 const DATE_FIELD_CLASS_NAME =
-  'rounded border-primary h-[40px] hover:border-accent-primary focus-within:border-focus';
+  'bg-transparent rounded border-primary h-[40px] hover:border-accent-primary focus-within:border-focus';
 
 interface PrimitiveFieldProps {
   value?: unknown;

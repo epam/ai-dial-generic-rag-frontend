@@ -9,8 +9,10 @@ import type {
   IDatasource,
 } from 'ag-grid-community';
 import { AgGridReact } from 'ag-grid-react';
+import { useMemo } from 'react';
 
-import { dialGridTheme } from '@/components/grid/grid-theme';
+import { getDialGridTheme } from '@/components/grid/grid-theme';
+import { useThemeContext } from '@/context/ThemeContext';
 
 const HEADER_HEIGHT = 30;
 const ROW_HEIGHT = 40;
@@ -24,7 +26,7 @@ interface NoRowsOverlayProps {
 function NoRowsOverlay({ title, description }: NoRowsOverlayProps) {
   return (
     <div className="flex flex-col items-center gap-1 text-center">
-      <p className="text-highlight text-sm font-semibold">
+      <p className="text-primary text-sm font-semibold">
         {title ?? 'No results found'}
       </p>
       {description && <p className="text-secondary text-xs">{description}</p>}
@@ -65,6 +67,9 @@ export function Grid<T>({
   emptyTitle,
   emptyDescription,
 }: GridProps<T>) {
+  const { isDarkTheme } = useThemeContext();
+  const gridTheme = useMemo(() => getDialGridTheme(isDarkTheme), [isDarkTheme]);
+
   const handleGridReady = (event: GridReadyEvent<T>) => {
     event.api.sizeColumnsToFit();
     onGridReady?.(event.api);
@@ -77,7 +82,7 @@ export function Grid<T>({
   return (
     <div className="h-full w-full">
       <AgGridReact<T>
-        theme={dialGridTheme}
+        theme={gridTheme}
         rowModelType={datasource ? 'infinite' : 'clientSide'}
         datasource={datasource}
         rowData={datasource ? undefined : rowData}

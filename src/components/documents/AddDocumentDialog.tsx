@@ -127,7 +127,7 @@ export function AddDocumentDialog({
         {hasSchema && (
           <section className="border-primary mt-1 flex flex-col gap-3 border-t pt-4">
             <div className="flex flex-col gap-1">
-              <h3 className="text-highlight text-sm font-semibold">Metadata</h3>
+              <h3 className="text-primary text-sm font-semibold">Metadata</h3>
               <p className="text-secondary text-xs">
                 Attributes stored with this document, from the channel schema.
               </p>

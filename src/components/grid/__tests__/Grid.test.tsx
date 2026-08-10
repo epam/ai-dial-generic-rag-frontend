@@ -14,7 +14,11 @@ vi.mock('ag-grid-react', () => ({
 
 // The real grid-theme registers ag-grid modules on import; stub it so the test stays isolated.
 vi.mock('@/components/grid/grid-theme', () => ({
-  dialGridTheme: { mockTheme: true },
+  getDialGridTheme: () => ({ mockTheme: true }),
+}));
+
+vi.mock('@/context/ThemeContext', () => ({
+  useThemeContext: () => ({ isDarkTheme: true }),
 }));
 
 import { Grid } from '@/components/grid/Grid';

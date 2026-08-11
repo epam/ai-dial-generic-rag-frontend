@@ -8,11 +8,32 @@
 }
 
 @layer base {
-  html {
+  /* `data-theme` is set by applyTheme (@/utils/themes/apply-theme) to the resolved theme's id;
+     'light' is the only light case, everything else (including no theme at all) is dark. */
+  html[data-theme='light'] {
+    color-scheme: light;
+  }
+  html:not([data-theme='light']) {
     color-scheme: dark;
-    @apply bg-blackout;
+  }
+  html {
+    @apply bg-layer-0;
+    /* The DIAL themes config has no entry for these tokens (confirmed against a real config) —
+       ai-dial-ui-kit components that use them (e.g. Calendar's popup) would otherwise always fall
+       back to its own hardcoded light defaults, in any theme. Aliased to the nearest token the
+       config does provide, so both light and dark resolve correctly through one definition. */
+    --bg-layer-raised: var(--bg-layer-3, #1d2439);
+    --bg-control-accent: var(--controls-bg-accent, #5c8dea);
+    --bg-control-accent-alpha-hover: var(--bg-accent-primary-alpha, #7da4ff26);
+    --text-accent: var(--text-accent-primary, #7da4ff);
+    /* Calendar's month-switcher buttons (ai-dial-ui-kit's generic fab-button style) — same missing-
+       token gap. No idle-state equivalent exists in the config either, which matches the apparent
+       intent (a plain icon until interacted with), so the idle case is transparent, not aliased. */
+    --bg-control-neutral: transparent;
+    --bg-control-neutral-hover: var(--controls-bg-neutral-hover, #242c42);
+    --bg-control-neutral-active: var(--controls-bg-neutral-active, #2d3652);
   }
   body {
-    @apply text-highlight;
+    @apply text-primary;
   }
 }

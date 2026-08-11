@@ -5,16 +5,17 @@ import { VisualizerConnectorEvents } from '@epam/ai-dial-shared';
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useEmbeddingContext } from '@/context/EmbeddingContext';
-import { applyTheme } from '@/utils/embedding/apply-theme';
 import { resolveParentOrigin } from '@/utils/embedding/resolve-parent-origin';
 import { createLogger } from '@/utils/logger';
 
 const logger = createLogger('embedding');
 
 /**
- * Bridges this app to DIAL Admin when embedded as an iframe: applies the `theme`/`authProvider`/
- * `id` query params, and sends the `ChatVisualizerConnector` ready handshake so DIAL Admin clears
- * its loading state. Auth is intentionally out of scope here.
+ * Bridges this app to DIAL Admin when embedded as an iframe: stores the `theme`/`authProvider`/
+ * `id` query params in {@link useEmbeddingContext}, and sends the `ChatVisualizerConnector` ready
+ * handshake so DIAL Admin clears its loading state. Auth is intentionally out of scope here. Theme
+ * *application* (the actual CSS variables) happens separately in `ThemeContextProvider`'s render
+ * body, not here — see `@/context/ThemeContext` and `@/utils/themes/apply-theme`.
  */
 export function useEmbeddingBridge(): void {
   const searchParams = useSearchParams();
@@ -30,7 +31,6 @@ export function useEmbeddingBridge(): void {
   } = useEmbeddingContext();
 
   useEffect(() => {
-    applyTheme(theme);
     setEmbeddingParams({ theme, authProvider, id });
     logger.info('applied embedding params', { theme, authProvider, id });
   }, [theme, authProvider, id, setEmbeddingParams]);

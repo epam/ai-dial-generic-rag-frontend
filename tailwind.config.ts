@@ -4,8 +4,6 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        blackout: '#131722',
-        highlight: '#e7e9ec',
         // Surface tokens matching @epam/ai-dial-ui-kit / DIAL Admin. The --bg-layer-* vars are
         // set only when a live DIAL theme is applied, so the hex fallbacks (the ui-kit's dark
         // defaults) are required for the panels (e.g. bg-layer-2 cards) to render standalone.
@@ -21,6 +19,9 @@ const config: Config = {
         primary: 'var(--stroke-primary, #696E7C)',
       },
       textColor: {
+        // Matches grid-theme.ts's foregroundColor fallback — ui-kit's own text-primary fallback
+        // assumes a light background and would render near-invisible on this app's dark default.
+        primary: 'var(--text-primary, #EEF1F7)',
         secondary: 'var(--text-secondary, #9FA6BD)',
       },
     },

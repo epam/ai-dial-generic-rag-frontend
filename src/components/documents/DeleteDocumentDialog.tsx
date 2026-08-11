@@ -66,7 +66,7 @@ export function DeleteDocumentDialog({
       <div className="flex flex-col gap-2 px-6 py-4">
         <p className="text-secondary text-sm">
           Delete{' '}
-          <span className="text-highlight font-medium">
+          <span className="text-primary font-medium">
             {document.display_name}
           </span>
           ? This cannot be undone.

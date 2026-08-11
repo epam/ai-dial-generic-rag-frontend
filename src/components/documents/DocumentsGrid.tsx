@@ -301,7 +301,7 @@ export function DocumentsGrid() {
     <div className="flex h-full min-h-0 flex-col p-4">
       <div className="bg-layer-2 flex min-h-0 flex-1 flex-col gap-4 rounded px-6 py-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-highlight text-base font-semibold">Documents</h2>
+          <h2 className="text-primary text-base font-semibold">Documents</h2>
           <DialButton
             variant={ButtonVariant.Primary}
             iconBefore={<PlusIcon />}

@@ -7,6 +7,7 @@ import {
   UpstreamRequestError,
 } from '@/utils/channel/channel-api';
 import { channelLogger } from '@/utils/channel/logger';
+import { resolveAttachment } from '@/utils/channel/route-helpers';
 
 const DEFAULT_OFFSET = 0;
 const DEFAULT_LIMIT = 25;
@@ -80,26 +81,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  let attachment: File;
-  let metadata: string | null;
-  try {
-    const form = await request.formData();
-    const file = form.get('attachment');
-    if (!(file instanceof File)) {
-      return NextResponse.json(
-        { error: 'attachment file is required' },
-        { status: 400 },
-      );
-    }
-    attachment = file;
-    const rawMetadata = form.get('metadata');
-    metadata = typeof rawMetadata === 'string' ? rawMetadata : null;
-  } catch {
-    return NextResponse.json(
-      { error: 'A valid multipart/form-data body is required' },
-      { status: 400 },
-    );
+  const parsed = await resolveAttachment(request);
+  if (parsed instanceof NextResponse) {
+    return parsed;
   }
+  const { form, attachment } = parsed;
+  const rawMetadata = form.get('metadata');
+  const metadata = typeof rawMetadata === 'string' ? rawMetadata : null;
 
   // Forward only the fields the channel accepts, so unexpected form parts are not passed upstream.
   const forward = new FormData();

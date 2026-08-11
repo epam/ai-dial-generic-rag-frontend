@@ -11,7 +11,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Lightweight stand-ins for the ui-kit widgets so the test drives the dialog's own logic.
 vi.mock('@epam/ai-dial-ui-kit', () => ({
   PopupSize: { Sm: 'sm', Md: 'md', Lg: 'lg' },
-  ButtonVariant: { Primary: 'primary', Neutral: 'neutral' },
   DialFormPopup: (props: {
     header?: ReactNode;
     submitLabel?: string;
@@ -48,15 +47,6 @@ vi.mock('@epam/ai-dial-ui-kit', () => ({
       }
     />
   ),
-  DialButton: (props: {
-    label?: string;
-    onClick?: () => void;
-    disabled?: boolean;
-  }) => (
-    <button onClick={props.onClick} disabled={props.disabled}>
-      {props.label}
-    </button>
-  ),
   DialErrorText: (props: { text?: string }) =>
     props.text ? <p data-testid="error-text">{props.text}</p> : null,
 }));
@@ -84,7 +74,7 @@ describe('ImportBundleDialog', () => {
     vi.unstubAllGlobals();
   });
 
-  it('accepts .msgpack bundles and keeps "Next" disabled until a file is chosen', () => {
+  it('shows the warnings up front and keeps Import disabled until a bundle is chosen', () => {
     render(
       <ImportBundleDialog
         applicationId="my-app"
@@ -93,33 +83,15 @@ describe('ImportBundleDialog', () => {
       />,
     );
 
-    const next = screen.getByRole('button', { name: 'Next' });
-    expect(next).toBeDisabled();
+    // Warnings are visible before any file is picked — no separate confirm step.
+    expect(screen.getByText('Before you import')).toBeInTheDocument();
+
+    const importButton = screen.getByRole('button', { name: 'Import' });
+    expect(importButton).toBeDisabled();
     expect(screen.getByTestId('file-area').dataset.accept).toBe('.msgpack');
 
     selectFile();
-    expect(next).toBeEnabled();
-  });
-
-  it('shows warnings on the confirm step and can go back to file selection', () => {
-    render(
-      <ImportBundleDialog
-        applicationId="my-app"
-        onClose={vi.fn()}
-        onImported={vi.fn()}
-      />,
-    );
-
-    selectFile();
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-
-    // Confirm step: warnings + Import button, no file area.
-    expect(screen.getByText('Before you import')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
-    expect(screen.queryByTestId('file-area')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByTestId('file-area')).toBeInTheDocument();
+    expect(importButton).toBeEnabled();
   });
 
   it('posts the bundle and calls onImported on success', async () => {
@@ -146,7 +118,6 @@ describe('ImportBundleDialog', () => {
     );
 
     selectFile();
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
 
     await waitFor(() => expect(onImported).toHaveBeenCalledWith(created));
@@ -173,7 +144,6 @@ describe('ImportBundleDialog', () => {
     );
 
     selectFile();
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
 
     await waitFor(() =>

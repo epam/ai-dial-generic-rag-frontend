@@ -6,13 +6,13 @@ import {
   DialFormItem,
   DialFormPopup,
   DialInput,
-  DialLoadFileArea,
   DialSchemaRenderer,
   PopupSize,
 } from '@epam/ai-dial-ui-kit';
 import type { JsonSchema } from '@epam/ai-dial-ui-kit';
 
 import { renderDateField } from '@/components/documents/render-date-field';
+import { SingleFilePicker } from '@/components/documents/SingleFilePicker';
 import type { Document } from '@/types/documents';
 import type { DocumentMetadataSchema } from '@/types/metadata';
 import { channelLogger } from '@/utils/channel/logger';
@@ -103,20 +103,15 @@ export function AddDocumentDialog({
       disableSubmitButton={!file}
     >
       <div className="flex flex-col gap-4 px-6 py-4">
-        {/* The drop zone is `h-full` internally and centers its content, so it needs a sized
-            parent — a fixed height here gives the label breathing room top and bottom. */}
-        <div className="h-32 shrink-0">
-          <DialLoadFileArea
-            acceptTypes={PDF_MIME_TYPE}
-            maxFilesCount={1}
-            files={file ? [file] : []}
-            onChange={(files) => setFile(files[0] ?? null)}
-            emptyTextFirstLine="Drag & drop your PDF here"
-            emptyTextSecondLine="or click to browse"
-            emptyButtonLabel="Select file"
-            fileFormatError="Only PDF files are supported."
-          />
-        </div>
+        <SingleFilePicker
+          file={file}
+          onFileChange={setFile}
+          acceptTypes={PDF_MIME_TYPE}
+          emptyTextFirstLine="Drag & drop your PDF here"
+          emptyTextSecondLine="or click to browse"
+          emptyButtonLabel="Select file"
+          fileFormatError="Only PDF files are supported."
+        />
         <DialFormItem label="Folder">
           <DialInput
             placeholder="e.g. reports/2026"

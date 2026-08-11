@@ -37,6 +37,35 @@ export async function resolveDocumentRequest(
 }
 
 /**
+ * Parses a multipart request body and returns its required `attachment` file (plus the full `form`
+ * for any additional parts a caller needs), or a `400` response when the body isn't valid multipart
+ * or the `attachment` is missing. Callers do:
+ * `const parsed = await resolveAttachment(request); if (parsed instanceof NextResponse) return parsed;`
+ */
+export async function resolveAttachment(
+  request: NextRequest,
+): Promise<{ form: FormData; attachment: File } | NextResponse> {
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return NextResponse.json(
+      { error: 'A valid multipart/form-data body is required' },
+      { status: 400 },
+    );
+  }
+
+  const attachment = form.get('attachment');
+  if (!(attachment instanceof File)) {
+    return NextResponse.json(
+      { error: 'attachment file is required' },
+      { status: 400 },
+    );
+  }
+  return { form, attachment };
+}
+
+/**
  * Maps a channel failure to a `502` response, logging {@link UpstreamRequestError} at `warn`
  * (an anticipated upstream status) and anything else at `error`. `action` names the operation for
  * the log message (e.g. `'delete'`).

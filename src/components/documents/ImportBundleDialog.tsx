@@ -1,13 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  ButtonVariant,
-  DialButton,
-  DialErrorText,
-  DialFormPopup,
-  PopupSize,
-} from '@epam/ai-dial-ui-kit';
+import { DialErrorText, DialFormPopup, PopupSize } from '@epam/ai-dial-ui-kit';
 
 import { SingleFilePicker } from '@/components/documents/SingleFilePicker';
 import type { Document } from '@/types/documents';
@@ -17,8 +11,9 @@ import { channelLogger } from '@/utils/channel/logger';
 // filter only — the channel validates the bundle and returns 422 for anything incompatible.
 const BUNDLE_ACCEPT_TYPES = '.msgpack';
 
-// The channel offers no dry-run/preview, so these are fixed advisories shown before the user commits,
-// matching the tasks-doc's "import warnings (schema mismatch, dropped index data, overwrite)".
+// The channel offers no dry-run/preview, so these are fixed advisories shown up front (before the
+// file is even chosen), matching the tasks-doc's "import warnings (schema mismatch, dropped index
+// data, overwrite)".
 const IMPORT_WARNINGS = [
   "The bundle's metadata may not match this channel's current schema.",
   'Index data in the bundle can be dropped if it is incompatible.',
@@ -32,28 +27,21 @@ interface ImportBundleDialogProps {
 }
 
 /**
- * Two-step modal for importing a previously-exported document bundle: (1) pick the `.msgpack` bundle,
- * (2) review the import warnings and confirm. Posts multipart `attachment` to
- * `POST /api/documents/import`; surfaces the channel's `422` as an "invalid bundle" message.
+ * Modal for importing a previously-exported document bundle. The import warnings are shown up front
+ * alongside the file picker (the channel has no dry-run/preview to drive a real preview step), so
+ * the user reads them, picks the `.msgpack` bundle, and imports in one step. Posts multipart
+ * `attachment` to `POST /api/documents/import`; surfaces the channel's `422` as an "invalid bundle".
  */
 export function ImportBundleDialog({
   applicationId,
   onClose,
   onImported,
 }: ImportBundleDialogProps) {
-  const [step, setStep] = useState<'select' | 'confirm'>('select');
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (step === 'select') {
-      if (file) {
-        setStep('confirm');
-      }
-      return;
-    }
-
     // The submit button is disabled without a file, but guard anyway before building the request.
     if (!file) {
       return;
@@ -95,7 +83,7 @@ export function ImportBundleDialog({
       open
       header="Import document bundle"
       size={PopupSize.Md}
-      submitLabel={step === 'select' ? 'Next' : 'Import'}
+      submitLabel="Import"
       onClose={onClose}
       onCancel={onClose}
       onSubmit={handleSubmit}
@@ -103,41 +91,25 @@ export function ImportBundleDialog({
       disableSubmitButton={!file}
     >
       <div className="flex flex-col gap-4 px-6 py-4">
-        {step === 'select' ? (
-          <SingleFilePicker
-            file={file}
-            onFileChange={setFile}
-            acceptTypes={BUNDLE_ACCEPT_TYPES}
-            emptyTextFirstLine="Drag & drop a document bundle here"
-            emptyTextSecondLine="or click to browse"
-            emptyButtonLabel="Select bundle"
-            fileFormatError="Only .msgpack bundle files are supported."
-          />
-        ) : (
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-secondary text-sm">
-                Importing{' '}
-                <span className="text-primary font-medium">{file?.name}</span>
-              </p>
-              <DialButton
-                variant={ButtonVariant.Neutral}
-                label="Back"
-                onClick={() => setStep('select')}
-              />
-            </div>
-            <section className="border-primary flex flex-col gap-2 rounded border p-3">
-              <h3 className="text-primary text-sm font-semibold">
-                Before you import
-              </h3>
-              <ul className="text-secondary flex list-disc flex-col gap-1 pl-5 text-xs">
-                {IMPORT_WARNINGS.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            </section>
-          </div>
-        )}
+        <section className="border-primary flex flex-col gap-2 rounded border p-3">
+          <h3 className="text-primary text-sm font-semibold">
+            Before you import
+          </h3>
+          <ul className="text-secondary flex list-disc flex-col gap-1 pl-5 text-xs">
+            {IMPORT_WARNINGS.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </section>
+        <SingleFilePicker
+          file={file}
+          onFileChange={setFile}
+          acceptTypes={BUNDLE_ACCEPT_TYPES}
+          emptyTextFirstLine="Drag & drop a document bundle here"
+          emptyTextSecondLine="or click to browse"
+          emptyButtonLabel="Select bundle"
+          fileFormatError="Only .msgpack bundle files are supported."
+        />
         {error && <DialErrorText text={error} />}
       </div>
     </DialFormPopup>

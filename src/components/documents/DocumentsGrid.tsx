@@ -15,12 +15,14 @@ import {
   DialNotification,
   NotificationVariant,
 } from '@epam/ai-dial-ui-kit';
+import { IconFileImport, IconPlus } from '@tabler/icons-react';
 
 import { AddDocumentDialog } from '@/components/documents/AddDocumentDialog';
 import { DeleteDocumentDialog } from '@/components/documents/DeleteDocumentDialog';
 import { DocumentActionsCell } from '@/components/documents/DocumentActionsCell';
 import { DocumentActionsProvider } from '@/components/documents/DocumentActionsContext';
 import { DocumentsFloatingFilter } from '@/components/documents/DocumentsFloatingFilter';
+import { ImportBundleDialog } from '@/components/documents/ImportBundleDialog';
 import { Grid } from '@/components/grid/Grid';
 import { useEmbeddingContext } from '@/context/EmbeddingContext';
 import type { Document, PaginatedDocuments } from '@/types/documents';
@@ -83,30 +85,12 @@ function getDocumentRowId(params: GetRowIdParams<Document>): string {
   return String(params.data.id);
 }
 
-/** Minimal inline "+" glyph for the Add button; no icon package is bundled in this app. */
-function PlusIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
 export function DocumentsGrid() {
   const { id: applicationId } = useEmbeddingContext();
   const [metadataSchema, setMetadataSchema] =
     useState<DocumentMetadataSchema | null>(null);
   const [isAddOpen, setAddOpen] = useState(false);
+  const [isImportOpen, setImportOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Document | null>(null);
   const [notification, setNotification] = useState<{
     variant: NotificationVariant;
@@ -297,18 +281,36 @@ export function DocumentsGrid() {
     refreshGrid();
   }, [refreshGrid]);
 
+  const handleImported = useCallback(() => {
+    setImportOpen(false);
+    refreshGrid();
+    setNotification({
+      variant: NotificationVariant.Success,
+      message: 'Document imported.',
+    });
+  }, [refreshGrid]);
+
   return (
     <div className="flex h-full min-h-0 flex-col p-4">
       <div className="bg-layer-2 flex min-h-0 flex-1 flex-col gap-4 rounded px-6 py-4">
         <div className="flex items-center justify-between">
           <h2 className="text-primary text-base font-semibold">Documents</h2>
-          <DialButton
-            variant={ButtonVariant.Primary}
-            iconBefore={<PlusIcon />}
-            label="Add"
-            onClick={() => setAddOpen(true)}
-            disabled={!applicationId}
-          />
+          <div className="flex items-center gap-2">
+            <DialButton
+              variant={ButtonVariant.Neutral}
+              iconBefore={<IconFileImport size={18} />}
+              label="Import"
+              onClick={() => setImportOpen(true)}
+              disabled={!applicationId}
+            />
+            <DialButton
+              variant={ButtonVariant.Primary}
+              iconBefore={<IconPlus size={18} />}
+              label="Add"
+              onClick={() => setAddOpen(true)}
+              disabled={!applicationId}
+            />
+          </div>
         </div>
         <div className="min-h-0 flex-1">
           <DocumentActionsProvider value={documentActions}>
@@ -331,6 +333,13 @@ export function DocumentsGrid() {
           schema={metadataSchema}
           onClose={() => setAddOpen(false)}
           onUploaded={handleUploaded}
+        />
+      )}
+      {isImportOpen && applicationId && (
+        <ImportBundleDialog
+          applicationId={applicationId}
+          onClose={() => setImportOpen(false)}
+          onImported={handleImported}
         />
       )}
       {pendingDelete && applicationId && (

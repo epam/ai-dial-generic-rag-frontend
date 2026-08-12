@@ -101,9 +101,15 @@ describe('POST /api/documents/import', () => {
     expect(callArg.formData.get('unexpected')).toBeNull();
   });
 
-  it('returns 422 with an actionable message when the bundle is rejected', async () => {
+  it('surfaces the channel message and verbose detail for a non-500 status (e.g. 422)', async () => {
     vi.mocked(getAccessToken).mockResolvedValue('token-123');
-    vi.mocked(importDocument).mockRejectedValue(new UpstreamRequestError(422));
+    vi.mocked(importDocument).mockRejectedValue(
+      new UpstreamRequestError(
+        422,
+        'Bundle schema mismatch',
+        'the full diagnostic',
+      ),
+    );
 
     const body = new FormData();
     body.append('attachment', bundleFile());
@@ -112,13 +118,31 @@ describe('POST /api/documents/import', () => {
 
     expect(response.status).toBe(422);
     expect(await response.json()).toEqual({
-      error: 'This file is not a valid or compatible document bundle.',
+      error: 'Bundle schema mismatch',
+      errorDetail: 'the full diagnostic',
     });
   });
 
-  it('returns 502 when the channel import returns another non-OK status', async () => {
+  it('falls back to a generic message for a non-500 status without detail', async () => {
     vi.mocked(getAccessToken).mockResolvedValue('token-123');
-    vi.mocked(importDocument).mockRejectedValue(new UpstreamRequestError(500));
+    vi.mocked(importDocument).mockRejectedValue(new UpstreamRequestError(400));
+
+    const body = new FormData();
+    body.append('attachment', bundleFile());
+
+    const response = await POST(makePostRequest('?applicationId=my-app', body));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'Failed to import the document bundle.',
+    });
+  });
+
+  it('keeps a 500 generic and does not leak its detail', async () => {
+    vi.mocked(getAccessToken).mockResolvedValue('token-123');
+    vi.mocked(importDocument).mockRejectedValue(
+      new UpstreamRequestError(500, 'NullPointerException at line 42'),
+    );
 
     const body = new FormData();
     body.append('attachment', bundleFile());

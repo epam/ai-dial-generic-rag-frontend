@@ -47,8 +47,6 @@ vi.mock('@epam/ai-dial-ui-kit', () => ({
       }
     />
   ),
-  DialErrorText: (props: { text?: string }) =>
-    props.text ? <p data-testid="error-text">{props.text}</p> : null,
 }));
 
 import { ImportBundleDialog } from '@/components/documents/ImportBundleDialog';
@@ -128,10 +126,15 @@ describe('ImportBundleDialog', () => {
     expect((init.body as FormData).get('attachment')).toBeInstanceOf(File);
   });
 
-  it('shows the invalid-bundle message on a 422 and does not call onImported', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({ ok: false, status: 422, json: async () => ({}) });
+  it('shows the concise message with the verbose detail as the hover title', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({
+        error: 'Bundle schema mismatch',
+        errorDetail: 'the full verbose diagnostic text',
+      }),
+    });
     vi.stubGlobal('fetch', fetchMock);
     const onImported = vi.fn();
 
@@ -146,11 +149,32 @@ describe('ImportBundleDialog', () => {
     selectFile();
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
 
-    await waitFor(() =>
-      expect(screen.getByTestId('error-text')).toHaveTextContent(
-        'not a valid or compatible document bundle',
-      ),
-    );
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Bundle schema mismatch');
+    expect(alert).toHaveAttribute('title', 'the full verbose diagnostic text');
     expect(onImported).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a generic message when the error response has no body message', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 502, json: async () => ({}) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <ImportBundleDialog
+        applicationId="my-app"
+        onClose={vi.fn()}
+        onImported={vi.fn()}
+      />,
+    );
+
+    selectFile();
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to import the bundle');
+    // No verbose detail → the title falls back to the visible text.
+    expect(alert).toHaveAttribute('title', alert.textContent ?? '');
   });
 });

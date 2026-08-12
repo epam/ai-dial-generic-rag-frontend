@@ -4,6 +4,7 @@ import type {
   IFloatingFilterParams,
   IFloatingFilterParent,
 } from 'ag-grid-community';
+import { IconSearch } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 const DEBOUNCE_MS = 400;
@@ -56,7 +57,7 @@ export function DocumentsFloatingFilter(props: IFloatingFilterParams) {
 
   return (
     <div className="border-primary text-secondary flex h-[23px] w-full flex-row items-center self-center rounded border pl-2">
-      <SearchIcon />
+      <IconSearch size={12} className="shrink-0" />
       <input
         type="text"
         className="w-full border-0 bg-transparent px-3 py-2 text-xs outline-none"
@@ -66,25 +67,5 @@ export function DocumentsFloatingFilter(props: IFloatingFilterParams) {
         aria-label="Filter column"
       />
     </div>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      width={12}
-      height={12}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
   );
 }

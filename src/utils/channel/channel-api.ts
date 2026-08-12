@@ -171,6 +171,26 @@ export async function uploadDocument(params: {
   });
 }
 
+/**
+ * Imports a previously-exported document bundle via multipart POST — `formData` must carry the
+ * `attachment` bundle file. Mirrors {@link uploadDocument} but hits `documents/import` and takes no
+ * folder/metadata. Returns the created {@link Document}; the channel replies `422` for an invalid or
+ * incompatible bundle (surfaced distinctly by the route).
+ */
+export async function importDocument(params: {
+  applicationId: string;
+  formData: FormData;
+  accessToken?: string;
+}): Promise<Document> {
+  const { applicationId, formData, accessToken } = params;
+  const url = buildChannelUrl(applicationId, 'documents/import');
+  channelLogger.debug('importing document bundle', { applicationId });
+  return channelFetch<Document>(url, accessToken, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
 /** Deletes a document from the channel. The endpoint responds `204 No Content`, so returns nothing. */
 export async function deleteDocument(params: {
   applicationId: string;

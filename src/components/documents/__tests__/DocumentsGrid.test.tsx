@@ -25,7 +25,7 @@ vi.mock('@epam/ai-dial-ui-kit', () => ({
       {props.label}
     </button>
   ),
-  ButtonVariant: { Primary: 'primary' },
+  ButtonVariant: { Primary: 'primary', Neutral: 'neutral' },
   NotificationVariant: {
     Info: 'info',
     Success: 'success',
@@ -96,6 +96,19 @@ vi.mock('@/components/documents/AddDocumentDialog', () => ({
     <div data-testid="add-dialog" data-application-id={props.applicationId}>
       <button onClick={props.onUploaded}>mock-upload</button>
       <button onClick={props.onClose}>mock-close</button>
+    </div>
+  ),
+}));
+
+vi.mock('@/components/documents/ImportBundleDialog', () => ({
+  ImportBundleDialog: (props: {
+    applicationId: string;
+    onClose: () => void;
+    onImported: () => void;
+  }) => (
+    <div data-testid="import-dialog" data-application-id={props.applicationId}>
+      <button onClick={props.onImported}>mock-import</button>
+      <button onClick={props.onClose}>mock-import-close</button>
     </div>
   ),
 }));
@@ -237,7 +250,7 @@ describe('DocumentsGrid', () => {
     actions.current = undefined;
   });
 
-  it('renders the Documents title and Add button', () => {
+  it('renders the Documents title with the Import and Add buttons', () => {
     stubFetch();
 
     render(<DocumentsGrid />);
@@ -245,7 +258,30 @@ describe('DocumentsGrid', () => {
     expect(
       screen.getByRole('heading', { name: 'Documents' }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
+  });
+
+  it('imports a bundle: opens the dialog, then refreshes and notifies on success', async () => {
+    stubFetch();
+    render(<DocumentsGrid />);
+
+    const api = { refreshInfiniteCache: vi.fn() } as unknown as GridApi;
+    grid.props?.onGridReady?.(api);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    expect(await screen.findByTestId('import-dialog')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'mock-import' }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('import-dialog')).not.toBeInTheDocument(),
+    );
+    expect(api.refreshInfiniteCache).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('notification')).toHaveAttribute(
+      'data-variant',
+      'success',
+    );
   });
 
   it('provides a datasource with the actions column and filterable metadata columns', async () => {
@@ -273,6 +309,7 @@ describe('DocumentsGrid', () => {
 
     expect(screen.getByTestId('grid').dataset.hasDatasource).toBe('false');
     expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeDisabled();
   });
 
   it('getRows fetches the block and reports total_count as the last row', async () => {

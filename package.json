@@ -17,6 +17,7 @@
     "@epam/ai-dial-chat-visualizer-connector": "^0.47.3",
     "@epam/ai-dial-shared": "^0.47.3",
     "@epam/ai-dial-ui-kit": "^0.13.0-dev.39",
+    "@tabler/icons-react": "^3.41.1",
     "ag-grid-community": "^35.3.1",
     "ag-grid-react": "^35.3.1",
     "next": "16.3.0",

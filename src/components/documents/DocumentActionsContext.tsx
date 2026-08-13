@@ -6,6 +6,7 @@ import type { Document } from '@/types/documents';
 
 /** Row-action handlers provided by DocumentsGrid and consumed by each row's actions cell. */
 export interface DocumentActions {
+  onEdit: (document: Document) => void;
   onDownload: (document: Document) => void;
   onExport: (document: Document) => void;
   onReindex: (document: Document) => void;

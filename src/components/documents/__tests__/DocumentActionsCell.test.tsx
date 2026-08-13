@@ -56,6 +56,7 @@ describe('DocumentActionsCell', () => {
 
   it('invokes the matching action handler with the row document', () => {
     const actions: DocumentActions = {
+      onEdit: vi.fn(),
       onDownload: vi.fn(),
       onExport: vi.fn(),
       onReindex: vi.fn(),
@@ -63,11 +64,13 @@ describe('DocumentActionsCell', () => {
     };
     renderCell(actions, DOC);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     fireEvent.click(screen.getByRole('button', { name: 'Download' }));
     fireEvent.click(screen.getByRole('button', { name: 'Export' }));
     fireEvent.click(screen.getByRole('button', { name: 'Reindex' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
+    expect(actions.onEdit).toHaveBeenCalledWith(DOC);
     expect(actions.onDownload).toHaveBeenCalledWith(DOC);
     expect(actions.onExport).toHaveBeenCalledWith(DOC);
     expect(actions.onReindex).toHaveBeenCalledWith(DOC);
@@ -77,6 +80,7 @@ describe('DocumentActionsCell', () => {
   it('renders nothing when the row has no data', () => {
     renderCell(
       {
+        onEdit: vi.fn(),
         onDownload: vi.fn(),
         onExport: vi.fn(),
         onReindex: vi.fn(),

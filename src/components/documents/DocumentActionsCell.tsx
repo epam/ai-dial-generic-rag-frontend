@@ -28,9 +28,9 @@ function KebabIcon() {
   );
 }
 
-/** Rightmost per-row kebab (⋮) menu: Download, Export, Reindex, Delete. */
+/** Rightmost per-row kebab (⋮) menu: Edit, Download, Export, Reindex, Delete. */
 export function DocumentActionsCell({ data }: ICellRendererParams<Document>) {
-  const { onDownload, onExport, onReindex, onRequestDelete } =
+  const { onEdit, onDownload, onExport, onReindex, onRequestDelete } =
     useDocumentActions();
 
   if (!data) {
@@ -38,6 +38,7 @@ export function DocumentActionsCell({ data }: ICellRendererParams<Document>) {
   }
 
   const items: DropdownItem[] = [
+    { key: 'edit', label: 'Edit', onClick: () => onEdit(data) },
     { key: 'download', label: 'Download', onClick: () => onDownload(data) },
     { key: 'export', label: 'Export', onClick: () => onExport(data) },
     { key: 'reindex', label: 'Reindex', onClick: () => onReindex(data) },

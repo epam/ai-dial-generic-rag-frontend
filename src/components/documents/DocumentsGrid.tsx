@@ -22,6 +22,7 @@ import { DeleteDocumentDialog } from '@/components/documents/DeleteDocumentDialo
 import { DocumentActionsCell } from '@/components/documents/DocumentActionsCell';
 import { DocumentActionsProvider } from '@/components/documents/DocumentActionsContext';
 import { DocumentsFloatingFilter } from '@/components/documents/DocumentsFloatingFilter';
+import { EditDocumentDialog } from '@/components/documents/EditDocumentDialog';
 import { ImportBundleDialog } from '@/components/documents/ImportBundleDialog';
 import { Grid } from '@/components/grid/Grid';
 import { useEmbeddingContext } from '@/context/EmbeddingContext';
@@ -91,6 +92,7 @@ export function DocumentsGrid() {
     useState<DocumentMetadataSchema | null>(null);
   const [isAddOpen, setAddOpen] = useState(false);
   const [isImportOpen, setImportOpen] = useState(false);
+  const [pendingEdit, setPendingEdit] = useState<Document | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Document | null>(null);
   const [notification, setNotification] = useState<{
     variant: NotificationVariant;
@@ -220,13 +222,17 @@ export function DocumentsGrid() {
     [applicationId, refreshGrid],
   );
 
+  const onEdit = useCallback((targetDocument: Document) => {
+    setPendingEdit(targetDocument);
+  }, []);
+
   const onRequestDelete = useCallback((targetDocument: Document) => {
     setPendingDelete(targetDocument);
   }, []);
 
   const documentActions = useMemo(
-    () => ({ onDownload, onExport, onReindex, onRequestDelete }),
-    [onDownload, onExport, onReindex, onRequestDelete],
+    () => ({ onEdit, onDownload, onExport, onReindex, onRequestDelete }),
+    [onEdit, onDownload, onExport, onReindex, onRequestDelete],
   );
 
   const columnDefs = useMemo<ColDef<Document>[]>(
@@ -340,6 +346,22 @@ export function DocumentsGrid() {
           applicationId={applicationId}
           onClose={() => setImportOpen(false)}
           onImported={handleImported}
+        />
+      )}
+      {pendingEdit && applicationId && (
+        <EditDocumentDialog
+          applicationId={applicationId}
+          document={pendingEdit}
+          schema={metadataSchema}
+          onClose={() => setPendingEdit(null)}
+          onEdited={(updated) => {
+            setPendingEdit(null);
+            refreshGrid();
+            setNotification({
+              variant: NotificationVariant.Success,
+              message: `Saved changes to "${updated.display_name}".`,
+            });
+          }}
         />
       )}
       {pendingDelete && applicationId && (

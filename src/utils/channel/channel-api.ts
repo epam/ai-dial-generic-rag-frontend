@@ -9,12 +9,93 @@ import { channelLogger } from '@/utils/channel/logger';
  */
 export class UpstreamRequestError extends Error {
   readonly status: number;
+  /** Concise, user-facing message parsed from the upstream error body, when present. */
+  readonly detail?: string;
+  /** Verbose/full diagnostic text (e.g. the DIAL envelope's `error.message`), for a hover tooltip. */
+  readonly detailFull?: string;
 
-  constructor(status: number) {
+  constructor(status: number, detail?: string, detailFull?: string) {
     super(`Failed to fetch documents: ${status}`);
     this.name = 'UpstreamRequestError';
     this.status = status;
+    this.detail = detail;
+    this.detailFull = detailFull;
   }
+}
+
+/** Returns the first argument that is a non-empty (trimmed) string. */
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Pulls a user-facing message out of a parsed channel error body. Handles:
+ * - the DIAL envelope `{ error: { display_message, message, code } }` — preferring the concise
+ *   `display_message` over the verbose diagnostic `message`;
+ * - flat `error`/`display_message`/`message`/`detail` strings;
+ * - FastAPI-style `detail: [{ msg }]` validation arrays.
+ */
+function parseErrorDetail(body: unknown): string | undefined {
+  if (typeof body === 'string') {
+    return body.trim() || undefined;
+  }
+  if (!body || typeof body !== 'object') {
+    return undefined;
+  }
+  const record = body as Record<string, unknown>;
+
+  if (record.error && typeof record.error === 'object') {
+    const inner = record.error as Record<string, unknown>;
+    const nested = firstString(inner.display_message, inner.message);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  const flat = firstString(
+    record.error,
+    record.display_message,
+    record.message,
+    record.detail,
+  );
+  if (flat) {
+    return flat;
+  }
+
+  if (Array.isArray(record.detail)) {
+    const messages = record.detail
+      .map((entry) =>
+        entry && typeof entry === 'object' && 'msg' in entry
+          ? String((entry as { msg: unknown }).msg)
+          : '',
+      )
+      .filter(Boolean);
+    if (messages.length > 0) {
+      return messages.join('; ');
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Pulls the verbose/full error text out of a parsed channel error body — the DIAL envelope's
+ * `error.message`, which carries the complete diagnostic behind the concise `display_message`.
+ * Returns `undefined` when there is no separate verbose text (callers then reuse the concise one).
+ */
+function parseErrorFull(body: unknown): string | undefined {
+  if (body && typeof body === 'object') {
+    const record = body as Record<string, unknown>;
+    if (record.error && typeof record.error === 'object') {
+      const inner = record.error as Record<string, unknown>;
+      return firstString(inner.message, inner.display_message);
+    }
+  }
+  return undefined;
 }
 
 /** Builds a DIAL Core deployment channel URL: `/v1/deployments/{id}/route/channel/{segment}`. */
@@ -106,7 +187,19 @@ async function channelRequest(
 
   const response = await fetch(url, { ...init, headers });
   if (!response.ok) {
-    throw new UpstreamRequestError(response.status);
+    // Read the upstream error body once so callers can surface the channel's own message (concise for
+    // display, plus the verbose diagnostic for a hover tooltip); a non-JSON/empty body yields neither.
+    let detail: string | undefined;
+    let detailFull: string | undefined;
+    try {
+      const body = await response.json();
+      detail = parseErrorDetail(body);
+      detailFull = parseErrorFull(body);
+    } catch {
+      detail = undefined;
+      detailFull = undefined;
+    }
+    throw new UpstreamRequestError(response.status, detail, detailFull);
   }
 
   return response;

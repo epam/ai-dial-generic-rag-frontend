@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { DialErrorText, DialFormPopup, PopupSize } from '@epam/ai-dial-ui-kit';
+import { DialFormPopup, PopupSize } from '@epam/ai-dial-ui-kit';
 
 import { SingleFilePicker } from '@/components/documents/SingleFilePicker';
 import type { Document } from '@/types/documents';
@@ -30,7 +30,8 @@ interface ImportBundleDialogProps {
  * Modal for importing a previously-exported document bundle. The import warnings are shown up front
  * alongside the file picker (the channel has no dry-run/preview to drive a real preview step), so
  * the user reads them, picks the `.msgpack` bundle, and imports in one step. Posts multipart
- * `attachment` to `POST /api/documents/import`; surfaces the channel's `422` as an "invalid bundle".
+ * `attachment` to `POST /api/documents/import` and, on failure, shows the channel's own error message
+ * (with a generic fallback for a 500 or a bodyless response).
  */
 export function ImportBundleDialog({
   applicationId,
@@ -39,7 +40,11 @@ export function ImportBundleDialog({
 }: ImportBundleDialogProps) {
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // `text` is the concise one-line message shown in the block; `full` (when present) is the verbose
+  // diagnostic revealed on hover.
+  const [error, setError] = useState<{ text: string; full?: string } | null>(
+    null,
+  );
 
   const handleSubmit = async () => {
     // The submit button is disabled without a file, but guard anyway before building the request.
@@ -60,11 +65,14 @@ export function ImportBundleDialog({
         { method: 'POST', body: formData },
       );
       if (!response.ok) {
-        setError(
-          response.status === 422
-            ? 'This file is not a valid or compatible document bundle.'
-            : 'Failed to import the bundle. Please try again.',
-        );
+        const body = (await response.json().catch(() => null)) as {
+          error?: string;
+          errorDetail?: string;
+        } | null;
+        setError({
+          text: body?.error ?? 'Failed to import the bundle. Please try again.',
+          full: body?.errorDetail,
+        });
         return;
       }
       onImported((await response.json()) as Document);
@@ -72,7 +80,7 @@ export function ImportBundleDialog({
       channelLogger.warn('failed to import document bundle', {
         reason: reason instanceof Error ? reason.message : String(reason),
       });
-      setError('Failed to import the bundle. Please try again.');
+      setError({ text: 'Failed to import the bundle. Please try again.' });
     } finally {
       setSubmitting(false);
     }
@@ -110,7 +118,15 @@ export function ImportBundleDialog({
           emptyButtonLabel="Select bundle"
           fileFormatError="Only .msgpack bundle files are supported."
         />
-        {error && <DialErrorText text={error} />}
+        {error && (
+          <p
+            role="alert"
+            className="text-error truncate text-xs"
+            title={error.full ?? error.text}
+          >
+            {error.text}
+          </p>
+        )}
       </div>
     </DialFormPopup>
   );

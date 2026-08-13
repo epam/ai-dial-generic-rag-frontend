@@ -173,6 +173,77 @@ describe('listDocuments', () => {
     expect((error as UpstreamRequestError).message).toBe(
       'Failed to fetch documents: 502',
     );
+    expect((error as UpstreamRequestError).detail).toBeUndefined();
+  });
+
+  it('captures a string error message from the response body as detail', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({ detail: 'Bundle schema mismatch' }),
+    });
+
+    const error = await listDocuments({
+      applicationId: 'my-app',
+      offset: 0,
+      limit: 25,
+    }).catch((e: unknown) => e);
+
+    expect((error as UpstreamRequestError).status).toBe(422);
+    expect((error as UpstreamRequestError).detail).toBe(
+      'Bundle schema mismatch',
+    );
+  });
+
+  it('prefers the DIAL error envelope display_message over the verbose message', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({
+        error: {
+          message:
+            "'external_url' is a required property\n\nFailed validating…",
+          type: 'invalid_request_error',
+          code: '422',
+          display_message:
+            "Value of metadata violates JSON schema: 'external_url' is a required property",
+        },
+      }),
+    });
+
+    const error = await listDocuments({
+      applicationId: 'my-app',
+      offset: 0,
+      limit: 25,
+    }).catch((e: unknown) => e);
+
+    // Concise display_message for the block; verbose message kept for the hover tooltip.
+    expect((error as UpstreamRequestError).detail).toBe(
+      "Value of metadata violates JSON schema: 'external_url' is a required property",
+    );
+    expect((error as UpstreamRequestError).detailFull).toBe(
+      "'external_url' is a required property\n\nFailed validating…",
+    );
+  });
+
+  it('joins FastAPI validation errors into detail', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({
+        detail: [{ msg: 'field required' }, { msg: 'value is not valid' }],
+      }),
+    });
+
+    const error = await listDocuments({
+      applicationId: 'my-app',
+      offset: 0,
+      limit: 25,
+    }).catch((e: unknown) => e);
+
+    expect((error as UpstreamRequestError).detail).toBe(
+      'field required; value is not valid',
+    );
   });
 });
 

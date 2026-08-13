@@ -23,6 +23,7 @@ const config: Config = {
         // assumes a light background and would render near-invisible on this app's dark default.
         primary: 'var(--text-primary, #EEF1F7)',
         secondary: 'var(--text-secondary, #9FA6BD)',
+        error: 'var(--text-error, #F76464)',
       },
     },
   },

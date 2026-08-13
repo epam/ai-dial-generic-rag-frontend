@@ -11,6 +11,7 @@ import {
   getMetadata,
   listDocuments,
   reindexDocument,
+  updateDocument,
   uploadDocument,
   UpstreamRequestError,
 } from '@/utils/channel/channel-api';
@@ -430,6 +431,40 @@ describe('single-document operations', () => {
     expect(fetch).toHaveBeenCalledWith(
       'https://core.example.com/v1/deployments/my-app/route/channel/documents/7/reindex',
       { method: 'PUT', headers: {} },
+    );
+    expect(result).toEqual(updated);
+  });
+
+  it('updateDocument PUTs the form data to documents/{id} and returns the document', async () => {
+    const updated = {
+      id: 7,
+      url: 'u',
+      display_name: 'a.pdf',
+      mime_type: 'application/pdf',
+      size: 3,
+      status: 'processing',
+    };
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => updated,
+    });
+    const formData = new FormData();
+
+    const result = await updateDocument({
+      applicationId: 'my-app',
+      id: 7,
+      formData,
+      accessToken: 'token-123',
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents/7',
+      {
+        method: 'PUT',
+        body: formData,
+        headers: { Authorization: 'Bearer token-123' },
+      },
     );
     expect(result).toEqual(updated);
   });

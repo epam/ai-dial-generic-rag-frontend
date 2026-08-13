@@ -215,6 +215,26 @@ export async function reindexDocument(params: {
   return channelFetch<Document>(url, accessToken, { method: 'PUT' });
 }
 
+/**
+ * Updates a document's content and/or metadata via multipart `PUT documents/{id}` — both the
+ * `attachment` file and the `metadata` JSON are optional server-side. Returns the updated
+ * {@link Document}; the channel replies `422` when the metadata violates the channel schema.
+ */
+export async function updateDocument(params: {
+  applicationId: string;
+  id: number;
+  formData: FormData;
+  accessToken?: string;
+}): Promise<Document> {
+  const { applicationId, id, formData, accessToken } = params;
+  const url = buildDocumentUrl(applicationId, id);
+  channelLogger.debug('updating document', { applicationId, id });
+  return channelFetch<Document>(url, accessToken, {
+    method: 'PUT',
+    body: formData,
+  });
+}
+
 /** Fetches the original document file as a raw streaming {@link Response} (for proxying a download). */
 export async function downloadDocument(params: {
   applicationId: string;

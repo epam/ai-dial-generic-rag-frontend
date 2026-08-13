@@ -69,6 +69,7 @@ vi.mock('@/components/grid/Grid', () => ({
 // Capture the row-action handlers the grid provides via context. The actions cell that consumes
 // them is unit-tested separately in DocumentActionsCell.test.
 interface DocumentActions {
+  onEdit: (document: Document) => void;
   onDownload: (document: Document) => void;
   onExport: (document: Document) => void;
   onReindex: (document: Document) => void;
@@ -109,6 +110,19 @@ vi.mock('@/components/documents/ImportBundleDialog', () => ({
     <div data-testid="import-dialog" data-application-id={props.applicationId}>
       <button onClick={props.onImported}>mock-import</button>
       <button onClick={props.onClose}>mock-import-close</button>
+    </div>
+  ),
+}));
+
+vi.mock('@/components/documents/EditDocumentDialog', () => ({
+  EditDocumentDialog: (props: {
+    document: { id: number; display_name: string };
+    onClose: () => void;
+    onEdited: (document: { id: number; display_name: string }) => void;
+  }) => (
+    <div data-testid="edit-dialog" data-doc-id={props.document.id}>
+      <button onClick={() => props.onEdited(props.document)}>mock-save</button>
+      <button onClick={props.onClose}>mock-edit-close</button>
     </div>
   ),
 }));
@@ -413,6 +427,30 @@ describe('DocumentsGrid', () => {
       'my-app',
       7,
       'report.pdf.msgpack',
+    );
+  });
+
+  it('edit action opens the dialog, then refreshes and notifies after save', async () => {
+    stubFetch();
+    render(<DocumentsGrid />);
+
+    const api = { refreshInfiniteCache: vi.fn() } as unknown as GridApi;
+    grid.props?.onGridReady?.(api);
+
+    actions.current?.onEdit(DOC);
+
+    const dialog = await screen.findByTestId('edit-dialog');
+    expect(dialog.dataset.docId).toBe('7');
+
+    fireEvent.click(screen.getByRole('button', { name: 'mock-save' }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('edit-dialog')).not.toBeInTheDocument(),
+    );
+    expect(api.refreshInfiniteCache).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('notification')).toHaveAttribute(
+      'data-variant',
+      'success',
     );
   });
 

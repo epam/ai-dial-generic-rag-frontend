@@ -138,18 +138,43 @@ export function buildMetadataUrl(applicationId: string): string {
 }
 
 /**
- * Builds the channel document upload URL, appending the optional `folder` query parameter (the
- * folder where the backend stores the file). Reuses the `documents` segment shared with the list.
+ * Builds the channel document upload URL, appending the optional `folder` query parameter (where the
+ * backend stores the file) and `overwrite=true` when replacing an existing document is allowed.
+ * Reuses the `documents` segment shared with the list.
  */
 export function buildDocumentsUploadUrl(
   applicationId: string,
   folder?: string,
+  overwrite?: boolean,
 ): string {
+  const searchParams: Record<string, string> = {};
+  if (folder) {
+    searchParams.folder = folder;
+  }
+  if (overwrite) {
+    searchParams.overwrite = 'true';
+  }
   return buildChannelUrl(
     applicationId,
     'documents',
-    folder ? { folder } : undefined,
+    Object.keys(searchParams).length > 0 ? searchParams : undefined,
   );
+}
+
+/**
+ * Builds the channel document-existence-check URL:
+ * `documents/exists?filename=…&folder=…`. `filename` is required; `folder` is appended only when
+ * provided (the channel applies its own default folder otherwise).
+ */
+export function buildDocumentsExistsUrl(
+  applicationId: string,
+  filename: string,
+  folder?: string,
+): string {
+  return buildChannelUrl(applicationId, 'documents/exists', {
+    filename,
+    ...(folder ? { folder } : {}),
+  });
 }
 
 /**
@@ -253,15 +278,39 @@ export async function uploadDocument(params: {
   applicationId: string;
   formData: FormData;
   folder?: string;
+  /** Allow the channel to replace an existing document at the same path (`overwrite=true`). */
+  overwrite?: boolean;
   accessToken?: string;
 }): Promise<Document> {
-  const { applicationId, formData, folder, accessToken } = params;
-  const url = buildDocumentsUploadUrl(applicationId, folder);
-  channelLogger.debug('uploading document', { applicationId, folder });
+  const { applicationId, formData, folder, overwrite, accessToken } = params;
+  const url = buildDocumentsUploadUrl(applicationId, folder, overwrite);
+  channelLogger.debug('uploading document', { applicationId, folder, overwrite });
   return channelFetch<Document>(url, accessToken, {
     method: 'POST',
     body: formData,
   });
+}
+
+/**
+ * Checks whether a document with `filename` already exists in the target `folder` (the channel's
+ * default folder when omitted) — used to validate a new upload's path before submitting. Hits
+ * `GET documents/exists` and returns the `exists` boolean from its `{ exists }` response body.
+ */
+export async function documentExists(params: {
+  applicationId: string;
+  filename: string;
+  folder?: string;
+  accessToken?: string;
+}): Promise<boolean> {
+  const { applicationId, filename, folder, accessToken } = params;
+  const url = buildDocumentsExistsUrl(applicationId, filename, folder);
+  channelLogger.debug('checking document existence', {
+    applicationId,
+    filename,
+    folder,
+  });
+  const body = await channelFetch<{ exists: boolean }>(url, accessToken);
+  return body.exists;
 }
 
 /**

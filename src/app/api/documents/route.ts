@@ -73,6 +73,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = request.nextUrl;
   const applicationId = searchParams.get('applicationId');
   const folder = searchParams.get('folder') ?? undefined;
+  const overwrite = searchParams.get('overwrite') === 'true';
 
   if (!applicationId) {
     return NextResponse.json(
@@ -101,6 +102,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const document = await uploadDocument({
       applicationId,
       folder,
+      overwrite,
       formData: forward,
       accessToken,
     });

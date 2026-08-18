@@ -24,6 +24,8 @@ const config: Config = {
         primary: 'var(--text-primary, #EEF1F7)',
         secondary: 'var(--text-secondary, #9FA6BD)',
         error: 'var(--text-error, #F76464)',
+        // Availability "free" state; fallback matches @epam/ai-dial-ui-kit's text-success token.
+        success: 'var(--text-success, #37BABC)',
       },
     },
   },

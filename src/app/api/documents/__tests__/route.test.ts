@@ -224,6 +224,7 @@ describe('POST /api/documents', () => {
     const callArg = vi.mocked(uploadDocument).mock.calls[0][0];
     expect(callArg.applicationId).toBe('my-app');
     expect(callArg.folder).toBe('reports');
+    expect(callArg.overwrite).toBe(false);
     expect(callArg.accessToken).toBe('token-123');
     const attachment = callArg.formData.get('attachment');
     expect(attachment).toBeInstanceOf(File);
@@ -231,6 +232,29 @@ describe('POST /api/documents', () => {
     expect(callArg.formData.get('metadata')).toBe(
       '{"publication_type":"report"}',
     );
+  });
+
+  it('forwards overwrite=true to uploadDocument when the query param is set', async () => {
+    vi.mocked(getAccessToken).mockResolvedValue('token-123');
+    vi.mocked(uploadDocument).mockResolvedValue({
+      id: 8,
+      url: 'u',
+      display_name: 'a.pdf',
+      mime_type: 'application/pdf',
+      size: 1,
+      status: 'created' as const,
+    });
+
+    const body = new FormData();
+    body.append('attachment', pdfFile());
+
+    const response = await POST(
+      makePostRequest('?applicationId=my-app&overwrite=true', body),
+    );
+
+    expect(response.status).toBe(201);
+    const callArg = vi.mocked(uploadDocument).mock.calls[0][0];
+    expect(callArg.overwrite).toBe(true);
   });
 
   it('returns 502 when the channel upload returns a non-OK status', async () => {

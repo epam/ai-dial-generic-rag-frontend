@@ -79,6 +79,22 @@ vi.mock('@epam/ai-dial-ui-kit', () => ({
   ),
   DialErrorText: (props: { text?: string }) =>
     props.text ? <p data-testid="error-text">{props.text}</p> : null,
+  DialCheckbox: (props: {
+    id: string;
+    label?: ReactNode;
+    checked: boolean;
+    onChange?: (value?: boolean, id?: string) => void;
+  }) => (
+    <label>
+      {props.label}
+      <input
+        type="checkbox"
+        data-testid="overwrite-checkbox"
+        checked={props.checked}
+        onChange={(event) => props.onChange?.(event.target.checked, props.id)}
+      />
+    </label>
+  ),
 }));
 
 import { AddDocumentDialog } from '@/components/documents/AddDocumentDialog';
@@ -103,7 +119,14 @@ describe('AddDocumentDialog', () => {
     vi.unstubAllGlobals();
   });
 
-  it('accepts only PDFs and keeps submit disabled until a file is chosen', () => {
+  it('accepts only PDFs and keeps submit disabled until a file is chosen', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ exists: false }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
     render(
       <AddDocumentDialog
         applicationId="my-app"
@@ -123,6 +146,9 @@ describe('AddDocumentDialog', () => {
       target: { files: [pdfFile()] },
     });
     expect(submit).toBeEnabled();
+
+    // Let the availability check settle so no state update dangles past the test.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
   });
 
   it('omits the metadata form when no schema is provided', () => {
@@ -174,7 +200,17 @@ describe('AddDocumentDialog', () => {
 
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(created));
 
-    const [url, init] = fetchMock.mock.calls[0];
+    // The availability check also uses fetch, so pick out the upload POST specifically.
+    const uploadCall = fetchMock.mock.calls.find(
+      (call) =>
+        typeof call[0] === 'string' &&
+        call[0].startsWith('/api/documents?') &&
+        call[1]?.method === 'POST',
+    );
+    if (!uploadCall) {
+      throw new Error('expected an upload POST to /api/documents');
+    }
+    const [url, init] = uploadCall;
     expect(url).toBe(
       '/api/documents?applicationId=my-app&folder=reports%2F2026',
     );
@@ -182,6 +218,172 @@ describe('AddDocumentDialog', () => {
     const body = init.body as FormData;
     expect((body.get('attachment') as File).name).toBe('report.pdf');
     expect(body.get('metadata')).toBe('{"publication_type":"report"}');
+  });
+
+  it('flags a duplicate file path and blocks the upload', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ exists: true }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <AddDocumentDialog
+        applicationId="my-app"
+        schema={SCHEMA}
+        onClose={vi.fn()}
+        onUploaded={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId('file-area'), {
+      target: { files: [pdfFile()] },
+    });
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('already exists');
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+
+    // The check hits the exists endpoint with the picked filename.
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      '/api/documents/exists?applicationId=my-app&filename=report.pdf',
+    );
+  });
+
+  it('checks immediately on file pick and shows the path as available', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ exists: false }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <AddDocumentDialog
+        applicationId="my-app"
+        schema={SCHEMA}
+        onClose={vi.fn()}
+        onUploaded={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId('file-area'), {
+      target: { files: [pdfFile()] },
+    });
+
+    // The check fires synchronously on pick — no debounce for a discrete file choice.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/api/documents/exists?applicationId=my-app&filename=report.pdf',
+    );
+
+    expect(
+      await screen.findByText('This file path is available.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
+  });
+
+  it('does not block the upload when the existence check itself fails', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => ({}),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <AddDocumentDialog
+        applicationId="my-app"
+        schema={SCHEMA}
+        onClose={vi.fn()}
+        onUploaded={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId('file-area'), {
+      target: { files: [pdfFile()] },
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
+  });
+
+  it('skips the existence check and uploads with overwrite=true when the box is checked', async () => {
+    const created = {
+      id: 1,
+      url: 'u',
+      display_name: 'report.pdf',
+      mime_type: 'application/pdf',
+      size: 1,
+      status: 'created',
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 201, json: async () => created });
+    vi.stubGlobal('fetch', fetchMock);
+    const onUploaded = vi.fn();
+
+    render(
+      <AddDocumentDialog
+        applicationId="my-app"
+        schema={SCHEMA}
+        onClose={vi.fn()}
+        onUploaded={onUploaded}
+      />,
+    );
+
+    // Enable overwrite first, then pick a file — no existence check should fire.
+    fireEvent.click(screen.getByTestId('overwrite-checkbox'));
+    fireEvent.change(screen.getByTestId('file-area'), {
+      target: { files: [pdfFile()] },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    const add = screen.getByRole('button', { name: 'Add' });
+    expect(add).toBeEnabled();
+    fireEvent.click(add);
+
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(created));
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/documents?applicationId=my-app&overwrite=true');
+    expect(init.method).toBe('POST');
+  });
+
+  it('re-validates the path when overwrite is turned back off', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ exists: true }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <AddDocumentDialog
+        applicationId="my-app"
+        schema={SCHEMA}
+        onClose={vi.fn()}
+        onUploaded={vi.fn()}
+      />,
+    );
+
+    // Overwrite on + a file → no check runs.
+    fireEvent.click(screen.getByTestId('overwrite-checkbox'));
+    fireEvent.change(screen.getByTestId('file-area'), {
+      target: { files: [pdfFile()] },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // Turning overwrite back off re-checks immediately and flags the taken path.
+    fireEvent.click(screen.getByTestId('overwrite-checkbox'));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('already exists');
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
   });
 
   it('shows an error and does not call onUploaded when the upload fails', async () => {

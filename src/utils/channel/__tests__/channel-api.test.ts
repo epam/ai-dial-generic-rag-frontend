@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  buildDocumentsExistsUrl,
   buildDocumentsListUrl,
   buildDocumentsUploadUrl,
   buildDocumentUrl,
   buildMetadataUrl,
   deleteDocument,
+  documentExists,
   downloadDocument,
   exportDocument,
   getMetadata,
@@ -332,6 +334,18 @@ describe('buildDocumentsUploadUrl', () => {
       'https://core.example.com/v1/deployments/my-app/route/channel/documents?folder=reports%2F2026',
     );
   });
+
+  it('appends overwrite=true when overwrite is set', () => {
+    expect(buildDocumentsUploadUrl('my-app', undefined, true)).toBe(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents?overwrite=true',
+    );
+  });
+
+  it('appends both folder and overwrite when provided', () => {
+    expect(buildDocumentsUploadUrl('my-app', 'reports', true)).toBe(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents?folder=reports&overwrite=true',
+    );
+  });
 });
 
 describe('uploadDocument', () => {
@@ -397,6 +411,27 @@ describe('uploadDocument', () => {
     );
   });
 
+  it('appends overwrite=true to the upload URL when overwrite is set', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({}),
+    });
+    const formData = new FormData();
+
+    await uploadDocument({
+      applicationId: 'my-app',
+      formData,
+      folder: 'reports',
+      overwrite: true,
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents?folder=reports&overwrite=true',
+      { method: 'POST', body: formData, headers: {} },
+    );
+  });
+
   it('throws an UpstreamRequestError carrying the status when the response is not ok', async () => {
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
@@ -407,6 +442,100 @@ describe('uploadDocument', () => {
     const error = await uploadDocument({
       applicationId: 'my-app',
       formData: new FormData(),
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(UpstreamRequestError);
+    expect((error as UpstreamRequestError).status).toBe(422);
+  });
+});
+
+describe('buildDocumentsExistsUrl', () => {
+  beforeEach(() => {
+    vi.stubEnv('DIAL_API_URL', 'https://core.example.com');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('builds the exists URL with the filename', () => {
+    expect(buildDocumentsExistsUrl('my-app', 'report.pdf')).toBe(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents/exists?filename=report.pdf',
+    );
+  });
+
+  it('appends the folder query parameter when provided', () => {
+    expect(
+      buildDocumentsExistsUrl('my-app', 'report.pdf', 'reports/2026'),
+    ).toBe(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents/exists?filename=report.pdf&folder=reports%2F2026',
+    );
+  });
+});
+
+describe('documentExists', () => {
+  beforeEach(() => {
+    vi.stubEnv('DIAL_API_URL', 'https://core.example.com');
+    vi.stubGlobal('fetch', vi.fn());
+    vi.spyOn(console, 'debug').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it('GETs the exists URL with a bearer token and returns the flag', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ exists: true }),
+    });
+
+    const result = await documentExists({
+      applicationId: 'my-app',
+      filename: 'report.pdf',
+      folder: 'reports',
+      accessToken: 'token-123',
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents/exists?filename=report.pdf&folder=reports',
+      { headers: { Authorization: 'Bearer token-123' } },
+    );
+    expect(result).toBe(true);
+  });
+
+  it('omits the folder and Authorization header when absent', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ exists: false }),
+    });
+
+    const result = await documentExists({
+      applicationId: 'my-app',
+      filename: 'report.pdf',
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents/exists?filename=report.pdf',
+      { headers: {} },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('throws an UpstreamRequestError carrying the status when the response is not ok', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({}),
+    });
+
+    const error = await documentExists({
+      applicationId: 'my-app',
+      filename: 'report.pdf',
     }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(UpstreamRequestError);

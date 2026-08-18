@@ -284,7 +284,11 @@ export async function uploadDocument(params: {
 }): Promise<Document> {
   const { applicationId, formData, folder, overwrite, accessToken } = params;
   const url = buildDocumentsUploadUrl(applicationId, folder, overwrite);
-  channelLogger.debug('uploading document', { applicationId, folder, overwrite });
+  channelLogger.debug('uploading document', {
+    applicationId,
+    folder,
+    overwrite,
+  });
   return channelFetch<Document>(url, accessToken, {
     method: 'POST',
     body: formData,

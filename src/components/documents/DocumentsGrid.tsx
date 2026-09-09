@@ -15,7 +15,11 @@ import {
   DialNotification,
   NotificationVariant,
 } from '@epam/ai-dial-ui-kit';
-import { IconFileImport, IconPlus } from '@tabler/icons-react';
+import {
+  IconFileImport,
+  IconPackageExport,
+  IconPlus,
+} from '@tabler/icons-react';
 
 import { AddDocumentDialog } from '@/components/documents/AddDocumentDialog';
 import { DeleteDocumentDialog } from '@/components/documents/DeleteDocumentDialog';
@@ -23,6 +27,7 @@ import { DocumentActionsCell } from '@/components/documents/DocumentActionsCell'
 import { DocumentActionsProvider } from '@/components/documents/DocumentActionsContext';
 import { DocumentsFloatingFilter } from '@/components/documents/DocumentsFloatingFilter';
 import { EditDocumentDialog } from '@/components/documents/EditDocumentDialog';
+import { ExportChannelDialog } from '@/components/documents/ExportChannelDialog';
 import { ImportBundleDialog } from '@/components/documents/ImportBundleDialog';
 import { Grid } from '@/components/grid/Grid';
 import { useEmbeddingContext } from '@/context/EmbeddingContext';
@@ -92,6 +97,7 @@ export function DocumentsGrid() {
     useState<DocumentMetadataSchema | null>(null);
   const [isAddOpen, setAddOpen] = useState(false);
   const [isImportOpen, setImportOpen] = useState(false);
+  const [isExportOpen, setExportOpen] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<Document | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Document | null>(null);
   const [notification, setNotification] = useState<{
@@ -287,6 +293,14 @@ export function DocumentsGrid() {
     refreshGrid();
   }, [refreshGrid]);
 
+  const handleArchiveDownloadStarted = useCallback(() => {
+    setExportOpen(false);
+    setNotification({
+      variant: NotificationVariant.Success,
+      message: 'Archive download started.',
+    });
+  }, []);
+
   const handleImported = useCallback(() => {
     setImportOpen(false);
     refreshGrid();
@@ -302,6 +316,13 @@ export function DocumentsGrid() {
         <div className="flex items-center justify-between">
           <h2 className="text-primary text-base font-semibold">Documents</h2>
           <div className="flex items-center gap-2">
+            <DialButton
+              variant={ButtonVariant.Neutral}
+              iconBefore={<IconPackageExport size={18} />}
+              label="Export channel"
+              onClick={() => setExportOpen(true)}
+              disabled={!applicationId}
+            />
             <DialButton
               variant={ButtonVariant.Neutral}
               iconBefore={<IconFileImport size={18} />}
@@ -333,6 +354,13 @@ export function DocumentsGrid() {
           </DocumentActionsProvider>
         </div>
       </div>
+      {isExportOpen && applicationId && (
+        <ExportChannelDialog
+          applicationId={applicationId}
+          onClose={() => setExportOpen(false)}
+          onDownloadStarted={handleArchiveDownloadStarted}
+        />
+      )}
       {isAddOpen && applicationId && (
         <AddDocumentDialog
           applicationId={applicationId}

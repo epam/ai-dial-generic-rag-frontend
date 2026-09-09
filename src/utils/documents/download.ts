@@ -30,6 +30,21 @@ export function exportDocumentBundle(
 }
 
 /**
+ * Downloads the prepared channel-wide export archive through our proxy route. Only call this once
+ * the export status is `ready` — the channel rejects the request otherwise. The browser names the
+ * file from the response's `Content-Disposition`; `fallbackName` is only a hint the proxy uses when
+ * the backend sends no such header.
+ */
+export function downloadChannelExportArchive(
+  applicationId: string,
+  fallbackName: string,
+): void {
+  triggerDownload('/api/export', applicationId, fallbackName, {
+    downloadAttr: '',
+  });
+}
+
+/**
  * Triggers a browser download of a same-origin proxy route via a transient `<a>`. `filename` is
  * sent as a query param (the server-side name / fallback hint); `downloadAttr` is the anchor's
  * `download` value — a concrete name to force it, or `''` to defer to `Content-Disposition`.

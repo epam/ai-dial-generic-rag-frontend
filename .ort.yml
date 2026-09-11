@@ -1,0 +1,11 @@
+---
+analyzer:
+  skip_excluded: true
+excludes:
+  paths:
+    - pattern: "package-lock.json"
+      reason: "BUILD_TOOL_OF"
+  scopes:
+    - pattern: "devDependencies"
+      reason: "DEV_DEPENDENCY_OF"
+      comment: "Packages for development only."

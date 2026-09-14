@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  buildChannelExportStatusUrl,
+  buildChannelExportUrl,
   buildDocumentsExistsUrl,
   buildDocumentsListUrl,
   buildDocumentsUploadUrl,
@@ -8,11 +10,14 @@ import {
   buildMetadataUrl,
   deleteDocument,
   documentExists,
+  downloadChannelExport,
   downloadDocument,
   exportDocument,
+  getChannelExportStatus,
   getMetadata,
   listDocuments,
   reindexDocument,
+  triggerChannelExport,
   updateDocument,
   uploadDocument,
   UpstreamRequestError,
@@ -731,5 +736,162 @@ describe('single-document operations', () => {
 
     expect(error).toBeInstanceOf(UpstreamRequestError);
     expect((error as UpstreamRequestError).status).toBe(502);
+  });
+});
+
+describe('channel export URL builders', () => {
+  beforeEach(() => {
+    vi.stubEnv('DIAL_API_URL', 'https://core.example.com');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('builds the channel export URL', () => {
+    expect(buildChannelExportUrl('my-app')).toBe(
+      'https://core.example.com/v1/deployments/my-app/route/channel/export',
+    );
+  });
+
+  it('builds the channel export status URL', () => {
+    expect(buildChannelExportStatusUrl('my-app')).toBe(
+      'https://core.example.com/v1/deployments/my-app/route/channel/export/status',
+    );
+  });
+
+  it('encodes the application id', () => {
+    expect(buildChannelExportStatusUrl('app/with slash')).toBe(
+      'https://core.example.com/v1/deployments/app%2Fwith%20slash/route/channel/export/status',
+    );
+  });
+
+  it('throws when DIAL_API_URL is not configured', () => {
+    vi.stubEnv('DIAL_API_URL', '');
+    expect(() => buildChannelExportUrl('my-app')).toThrow(
+      'DIAL_API_URL is not configured',
+    );
+    expect(() => buildChannelExportStatusUrl('my-app')).toThrow(
+      'DIAL_API_URL is not configured',
+    );
+  });
+});
+
+describe('channel export operations', () => {
+  beforeEach(() => {
+    vi.stubEnv('DIAL_API_URL', 'https://core.example.com');
+    vi.stubGlobal('fetch', vi.fn());
+    vi.spyOn(console, 'debug').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it('triggerChannelExport PUTs the export URL with the bearer token', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 202,
+      json: async () => ({ status: 'pending' }),
+    });
+
+    const result = await triggerChannelExport({
+      applicationId: 'my-app',
+      accessToken: 'token-123',
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/export',
+      { method: 'PUT', headers: { Authorization: 'Bearer token-123' } },
+    );
+    expect(result).toEqual({ status: 'pending' });
+  });
+
+  it('triggerChannelExport throws an UpstreamRequestError on a non-OK status', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 422,
+    });
+
+    const error = await triggerChannelExport({
+      applicationId: 'my-app',
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(UpstreamRequestError);
+    expect((error as UpstreamRequestError).status).toBe(422);
+  });
+
+  it('getChannelExportStatus GETs the status URL and returns the body', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: 'ready' }),
+    });
+
+    const result = await getChannelExportStatus({ applicationId: 'my-app' });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/export/status',
+      { headers: {} },
+    );
+    expect(result).toEqual({ status: 'ready' });
+  });
+
+  it('getChannelExportStatus returns not_found as a normal body, not an error', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: 'not_found' }),
+    });
+
+    await expect(
+      getChannelExportStatus({ applicationId: 'my-app' }),
+    ).resolves.toEqual({ status: 'not_found' });
+  });
+
+  it('getChannelExportStatus throws an UpstreamRequestError on a non-OK status', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 422,
+    });
+
+    const error = await getChannelExportStatus({
+      applicationId: 'my-app',
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(UpstreamRequestError);
+    expect((error as UpstreamRequestError).status).toBe(422);
+  });
+
+  it('downloadChannelExport returns the raw archive response for streaming', async () => {
+    const response = { ok: true, status: 200, body: 'archive' };
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(response);
+
+    const result = await downloadChannelExport({
+      applicationId: 'my-app',
+      accessToken: 'token-123',
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/export',
+      { headers: { Authorization: 'Bearer token-123' } },
+    );
+    expect(result).toBe(response);
+  });
+
+  it('downloadChannelExport throws an UpstreamRequestError on a non-OK status', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 422,
+    });
+
+    const error = await downloadChannelExport({
+      applicationId: 'my-app',
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(UpstreamRequestError);
+    expect((error as UpstreamRequestError).status).toBe(422);
   });
 });

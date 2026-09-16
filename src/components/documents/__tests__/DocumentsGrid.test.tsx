@@ -114,6 +114,19 @@ vi.mock('@/components/documents/ImportBundleDialog', () => ({
   ),
 }));
 
+vi.mock('@/components/documents/ExportChannelDialog', () => ({
+  ExportChannelDialog: (props: {
+    applicationId: string;
+    onClose: () => void;
+    onDownloadStarted: () => void;
+  }) => (
+    <div data-testid="export-dialog" data-application-id={props.applicationId}>
+      <button onClick={props.onDownloadStarted}>mock-archive-download</button>
+      <button onClick={props.onClose}>mock-export-close</button>
+    </div>
+  ),
+}));
+
 vi.mock('@/components/documents/EditDocumentDialog', () => ({
   EditDocumentDialog: (props: {
     document: { id: number; display_name: string };
@@ -264,7 +277,7 @@ describe('DocumentsGrid', () => {
     actions.current = undefined;
   });
 
-  it('renders the Documents title with the Import and Add buttons', () => {
+  it('renders the Documents title with the Export channel, Import and Add buttons', () => {
     stubFetch();
 
     render(<DocumentsGrid />);
@@ -272,8 +285,32 @@ describe('DocumentsGrid', () => {
     expect(
       screen.getByRole('heading', { name: 'Documents' }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Export channel' }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
+  });
+
+  it('exports the channel: opens the dialog, then closes and notifies on download', async () => {
+    stubFetch();
+    render(<DocumentsGrid />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export channel' }));
+    const dialog = await screen.findByTestId('export-dialog');
+    expect(dialog.dataset.applicationId).toBe('my-app');
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'mock-archive-download' }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('export-dialog')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('notification')).toHaveAttribute(
+      'data-variant',
+      'success',
+    );
   });
 
   it('imports a bundle: opens the dialog, then refreshes and notifies on success', async () => {
@@ -324,6 +361,9 @@ describe('DocumentsGrid', () => {
     expect(screen.getByTestId('grid').dataset.hasDatasource).toBe('false');
     expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Import' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Export channel' }),
+    ).toBeDisabled();
   });
 
   it('getRows fetches the block and reports total_count as the last row', async () => {

@@ -7,6 +7,25 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Every ai-dial-ui-kit loader — `DialLoader`, `Spinner`, and the `loading` variant of
+   `DialNotification` — spins via an `animate-spin-steps` class that the kit's own stylesheet does
+   not define, so the animation has to come from here. Without it they render frozen: the ring
+   spinner (`border-2 border-secondary border-t-info`) looks like a static quarter-arc, since only
+   its top border carries the accent colour. `steps(8)` matches DialLoader's eight graded spokes. */
+@theme {
+  --animate-spin-steps: spin-steps 1s steps(8) infinite;
+
+  @keyframes spin-steps {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+/* The class is referenced only inside the kit's bundle, and Tailwind does not scan node_modules —
+   so the utility above would never be emitted unless it is generated explicitly. */
+@source inline('animate-spin-steps');
+
 @layer base {
   /* `data-theme` is set by applyTheme (@/utils/themes/apply-theme) to the resolved theme's id;
      'light' is the only light case, everything else (including no theme at all) is dark. */

@@ -3,18 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAccessToken } from '@/utils/auth/get-access-token';
 import { downloadDocument } from '@/utils/channel/channel-api';
 import {
+  contentDisposition,
   documentErrorResponse,
   resolveDocumentRequest,
 } from '@/utils/channel/route-helpers';
 
 // Streaming a large document may exceed the default budget.
 export const maxDuration = 45;
-
-/** Builds a `Content-Disposition` value safe from header injection, keeping unicode via `filename*`. */
-function contentDisposition(filename: string): string {
-  const ascii = filename.replace(/["\\\r\n]/g, '_');
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
-}
 
 export async function GET(
   request: NextRequest,

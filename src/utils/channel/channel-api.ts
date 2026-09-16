@@ -1,3 +1,4 @@
+import type { ChannelArchiveResponse } from '@/types/channel-export';
 import type { Document, PaginatedDocuments } from '@/types/documents';
 import type { ChannelMetadata } from '@/types/metadata';
 import { channelLogger } from '@/utils/channel/logger';
@@ -192,6 +193,19 @@ export function buildDocumentUrl(
     applicationId,
     subPath ? `documents/${encodedId}/${subPath}` : `documents/${encodedId}`,
   );
+}
+
+/**
+ * Builds the channel-wide export archive URL: `export`. `PUT` triggers preparation and `GET`
+ * downloads the finished archive — see {@link buildChannelExportStatusUrl} for the progress check.
+ */
+export function buildChannelExportUrl(applicationId: string): string {
+  return buildChannelUrl(applicationId, 'export');
+}
+
+/** Builds the channel export archive status URL: `export/status`. */
+export function buildChannelExportStatusUrl(applicationId: string): string {
+  return buildChannelUrl(applicationId, 'export/status');
 }
 
 /**
@@ -402,5 +416,50 @@ export async function exportDocument(params: {
   const { applicationId, id, accessToken } = params;
   const url = buildDocumentUrl(applicationId, id, 'export');
   channelLogger.debug('exporting document', { applicationId, id });
+  return channelRequest(url, accessToken);
+}
+
+/**
+ * Triggers preparation of the channel-wide export archive. The backend answers `202` immediately
+ * and does the work in the background, so the returned status is the *initial* one (typically
+ * `pending`) — poll {@link getChannelExportStatus} for the outcome.
+ */
+export async function triggerChannelExport(params: {
+  applicationId: string;
+  accessToken?: string;
+}): Promise<ChannelArchiveResponse> {
+  const { applicationId, accessToken } = params;
+  const url = buildChannelExportUrl(applicationId);
+  channelLogger.debug('triggering channel export', { applicationId });
+  return channelFetch<ChannelArchiveResponse>(url, accessToken, {
+    method: 'PUT',
+  });
+}
+
+/**
+ * Reads the current state of the channel export archive. `not_found` (no archive prepared yet) is a
+ * normal `200` body value, not a `404`, so it arrives here as data rather than an error.
+ */
+export async function getChannelExportStatus(params: {
+  applicationId: string;
+  accessToken?: string;
+}): Promise<ChannelArchiveResponse> {
+  const { applicationId, accessToken } = params;
+  const url = buildChannelExportStatusUrl(applicationId);
+  channelLogger.debug('fetching channel export status', { applicationId });
+  return channelFetch<ChannelArchiveResponse>(url, accessToken);
+}
+
+/**
+ * Fetches the prepared channel archive as a raw streaming {@link Response} (for proxying a
+ * download). Only meaningful once the status is `ready`; the channel rejects the request otherwise.
+ */
+export async function downloadChannelExport(params: {
+  applicationId: string;
+  accessToken?: string;
+}): Promise<Response> {
+  const { applicationId, accessToken } = params;
+  const url = buildChannelExportUrl(applicationId);
+  channelLogger.debug('downloading channel export archive', { applicationId });
   return channelRequest(url, accessToken);
 }

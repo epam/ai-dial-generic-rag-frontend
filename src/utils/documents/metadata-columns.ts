@@ -78,6 +78,18 @@ export function humanizePropertyKey(key: string): string {
 }
 
 /**
+ * Date metadata columns filter via the channel's `start`/`end` operators, which only express a
+ * range — restrict the filter menu to `inRange`. Text columns keep the default `agTextColumnFilter`
+ * restricted to `eq` (the channel's only text operator, no substring search) via
+ * `DEFAULT_COL_DEF`'s `filterParams`. Neither shows a floating-filter row — see `DEFAULT_COL_DEF`'s
+ * comment for why.
+ */
+const DATE_FILTER_COL_DEF: Pick<ColDef<Document>, 'filter' | 'filterParams'> = {
+  filter: 'agDateColumnFilter',
+  filterParams: { filterOptions: ['inRange'], maxNumConditions: 1 },
+};
+
+/**
  * Builds the dynamic documents-grid columns from the channel metadata schema: one column per
  * filterable string/date property, reading its value from the document's `metadata` map. Property
  * order follows the schema's declaration order.
@@ -105,6 +117,7 @@ export function buildMetadataColumns(
           return isDate ? formatDatePropertyValue(property, raw) : raw;
         },
         flex: 1,
+        ...(isDate ? DATE_FILTER_COL_DEF : {}),
       };
     });
 }

@@ -114,7 +114,7 @@ describe('GET /api/documents', () => {
 
     await GET(
       makeRequest(
-        '?applicationId=my-app&offset=0&limit=25&sort=display_name&order=asc&display_name=report',
+        '?applicationId=my-app&offset=0&limit=25&sort=display_name,asc&display_name%5Beq%5D=report',
       ),
     );
 
@@ -123,9 +123,34 @@ describe('GET /api/documents', () => {
       offset: 0,
       limit: 25,
       searchParams: {
-        sort: 'display_name',
-        order: 'asc',
-        display_name: 'report',
+        sort: 'display_name,asc',
+        'display_name[eq]': 'report',
+      },
+      accessToken: 'token-123',
+    });
+  });
+
+  it('forwards a repeated sort key as an array (multi-column sort)', async () => {
+    vi.mocked(getAccessToken).mockResolvedValue('token-123');
+    vi.mocked(listDocuments).mockResolvedValue({
+      total_count: 0,
+      offset: 0,
+      limit: 25,
+      results: [],
+    });
+
+    await GET(
+      makeRequest(
+        '?applicationId=my-app&offset=0&limit=25&sort=display_name,asc&sort=status,desc',
+      ),
+    );
+
+    expect(listDocuments).toHaveBeenCalledWith({
+      applicationId: 'my-app',
+      offset: 0,
+      limit: 25,
+      searchParams: {
+        sort: ['display_name,asc', 'status,desc'],
       },
       accessToken: 'token-123',
     });

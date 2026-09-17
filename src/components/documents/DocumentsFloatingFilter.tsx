@@ -12,7 +12,11 @@ const DEBOUNCE_MS = 400;
 /**
  * Custom ag-Grid floating filter for the documents grid, ported from DIAL Admin's `FloatingFilter`
  * so the column search inputs look identical: a bordered box with a search icon wrapping a
- * borderless input, debounced into a `contains` text filter.
+ * borderless input, debounced into an `equals` text filter — the channel only supports exact
+ * match (`eq`) on metadata fields, not substring search.
+ *
+ * Not currently wired into any column (see `DocumentsGrid.tsx`'s `DEFAULT_COL_DEF` comment) — kept
+ * for reuse if the channel ever adds a `contains` operator and a floating filter row comes back.
  */
 export function DocumentsFloatingFilter(props: IFloatingFilterParams) {
   const parentValue =
@@ -48,7 +52,7 @@ export function DocumentsFloatingFilter(props: IFloatingFilterParams) {
     timerRef.current = setTimeout(() => {
       applyToParent((instance) => {
         (instance as unknown as IFloatingFilterParent).onFloatingFilterChanged(
-          'contains',
+          'equals',
           nextValue,
         );
       });

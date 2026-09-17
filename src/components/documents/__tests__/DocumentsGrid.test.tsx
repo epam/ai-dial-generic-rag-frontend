@@ -389,13 +389,15 @@ describe('DocumentsGrid', () => {
 
     const params = makeGetRowsParams({
       sortModel: [{ colId: 'display_name', sort: 'asc' }],
-      filterModel: { display_name: { filter: 'report' } },
+      filterModel: {
+        publication_type: { filterType: 'text', filter: 'report' },
+      },
     });
     grid.props?.datasource?.getRows(params);
 
     await waitFor(() => expect(params.successCallback).toHaveBeenCalled());
     expect(fetch).toHaveBeenCalledWith(
-      '/api/documents?sort=display_name&order=asc&display_name=report&applicationId=my-app&offset=0&limit=25',
+      '/api/documents?sort=display_name%2Casc&publication_type%5Beq%5D=report&applicationId=my-app&offset=0&limit=25',
     );
   });
 

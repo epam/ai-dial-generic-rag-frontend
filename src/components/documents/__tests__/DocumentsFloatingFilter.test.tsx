@@ -47,7 +47,7 @@ describe('DocumentsFloatingFilter', () => {
     );
   });
 
-  it('debounces typing into a single contains filter change', () => {
+  it('debounces typing into a single equals filter change', () => {
     const { params, onFloatingFilterChanged } = makeParams();
     render(<DocumentsFloatingFilter {...params} />);
 
@@ -63,6 +63,6 @@ describe('DocumentsFloatingFilter', () => {
     });
 
     expect(onFloatingFilterChanged).toHaveBeenCalledTimes(1);
-    expect(onFloatingFilterChanged).toHaveBeenCalledWith('contains', 'sig');
+    expect(onFloatingFilterChanged).toHaveBeenCalledWith('equals', 'sig');
   });
 });

@@ -208,4 +208,20 @@ describe('buildMetadataColumns', () => {
     expect(buildMetadataColumns({})).toEqual([]);
     expect(buildMetadataColumns({ properties: {} })).toEqual([]);
   });
+
+  it('gives date columns a range filter instead of the default text filter', () => {
+    const columns = buildMetadataColumns(SAMPLE_SCHEMA);
+    const byId = Object.fromEntries(
+      columns.map((column) => [column.colId, column]),
+    );
+
+    expect(byId['publication_date'].filter).toBe('agDateColumnFilter');
+    expect(byId['publication_date'].filterParams).toEqual({
+      filterOptions: ['inRange'],
+      maxNumConditions: 1,
+    });
+
+    expect(byId['publication_type'].filter).toBeUndefined();
+    expect(byId['publication_type'].filterParams).toBeUndefined();
+  });
 });

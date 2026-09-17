@@ -1,14 +1,29 @@
 import type { SortModelItem } from 'ag-grid-community';
 
+interface FilterModelEntry {
+  filterType?: string;
+  /** Text filter model (`filterType: 'text'`): the raw input value. */
+  filter?: unknown;
+  /** Date filter model (`filterType: 'date'`, `type: 'inRange'`): range bounds, `'YYYY-MM-DD HH:mm:ss'`. */
+  dateFrom?: unknown;
+  dateTo?: unknown;
+}
+
+/** Ag-grid date filter values carry a time component; the channel's `start`/`end` filters take a plain date. */
+function dateOnly(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim()
+    ? value.trim().split(' ')[0]
+    : undefined;
+}
+
 /**
- * Translates ag-grid's sort + filter model into channel list query params.
- *
- * This is the single FE↔BE contract for server-side sort/filter — align the shapes here with the
- * backend filter support being added:
- * - Sorting (single active column): `sort=<field>&order=<asc|desc>`.
- * - Text filters: one `<field>=<value>` per active column, with `contains` semantics
- *   (`DocumentsFloatingFilter` emits `contains`). The column `field`/`colId` doubles as the query
- *   key; none collide with the reserved `applicationId`/`offset`/`limit`/`sort`/`order`.
+ * Translates ag-grid's sort + filter model into channel list query params, matching the channel's
+ * `GET /channel/documents` contract:
+ * - Sort: one `sort=<field>,<asc|desc>` entry per active sort column, as repeated query keys
+ *   (confirmed against a live call — the channel does not accept a comma-joined list).
+ * - Filters (metadata columns only — the channel only supports filtering by metadata fields):
+ *   `<field>[eq]=<value>` for a text filter, `<field>[start]=<date>`/`<field>[end]=<date>` for a
+ *   date range filter. There is no `contains`/substring operator on the channel.
  */
 export function buildDocumentsQuery(
   sortModel: SortModelItem[] | undefined,
@@ -16,16 +31,30 @@ export function buildDocumentsQuery(
 ): URLSearchParams {
   const params = new URLSearchParams();
 
-  const sort = sortModel?.[0];
-  if (sort) {
-    params.set('sort', sort.colId);
-    params.set('order', sort.sort);
+  for (const sort of sortModel ?? []) {
+    params.append('sort', `${sort.colId},${sort.sort}`);
   }
 
-  for (const [field, model] of Object.entries(filterModel ?? {})) {
-    const value = (model as { filter?: unknown } | null)?.filter;
-    if (typeof value === 'string' && value.trim()) {
-      params.set(field, value.trim());
+  for (const [field, rawModel] of Object.entries(filterModel ?? {})) {
+    const model = rawModel as FilterModelEntry | null;
+    if (!model) {
+      continue;
+    }
+
+    if (model.filterType === 'date') {
+      const start = dateOnly(model.dateFrom);
+      const end = dateOnly(model.dateTo);
+      if (start) {
+        params.set(`${field}[start]`, start);
+      }
+      if (end) {
+        params.set(`${field}[end]`, end);
+      }
+      continue;
+    }
+
+    if (typeof model.filter === 'string' && model.filter.trim()) {
+      params.set(`${field}[eq]`, model.filter.trim());
     }
   }
 

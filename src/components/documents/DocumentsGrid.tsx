@@ -25,7 +25,6 @@ import { AddDocumentDialog } from '@/components/documents/AddDocumentDialog';
 import { DeleteDocumentDialog } from '@/components/documents/DeleteDocumentDialog';
 import { DocumentActionsCell } from '@/components/documents/DocumentActionsCell';
 import { DocumentActionsProvider } from '@/components/documents/DocumentActionsContext';
-import { DocumentsFloatingFilter } from '@/components/documents/DocumentsFloatingFilter';
 import { EditDocumentDialog } from '@/components/documents/EditDocumentDialog';
 import { ExportChannelDialog } from '@/components/documents/ExportChannelDialog';
 import { ImportBundleDialog } from '@/components/documents/ImportBundleDialog';
@@ -43,23 +42,61 @@ import { buildMetadataColumns } from '@/utils/documents/metadata-columns';
 
 const PAGE_SIZE = 25;
 
+// No `filter` override needed per column below: the channel only supports filtering by metadata
+// fields, not these base `Document` fields — `filter: false` opts them out explicitly rather than
+// leaving a filter input that would silently no-op against the backend.
+// An explicit minWidth on `id` keeps it below the shared default floor for narrow columns.
 const BASE_COLUMN_DEFS: ColDef<Document>[] = [
-  // An explicit minWidth keeps these below the shared default floor for narrow columns.
-  { field: 'id', headerName: 'ID', width: 88, minWidth: 72, maxWidth: 120 },
-  { field: 'display_name', headerName: 'Name', flex: 1 },
-  { field: 'size', headerName: 'Size (bytes)', width: 140 },
-  { field: 'mime_type', headerName: 'Type', width: 160 },
-  { field: 'status', headerName: 'Status', width: 140 },
+  {
+    field: 'id',
+    headerName: 'ID',
+    width: 88,
+    minWidth: 72,
+    maxWidth: 120,
+    filter: false,
+  },
+  {
+    field: 'display_name',
+    headerName: 'Name',
+    flex: 1,
+    filter: false,
+  },
+  {
+    field: 'size',
+    headerName: 'Size (bytes)',
+    width: 140,
+    filter: false,
+  },
+  {
+    field: 'mime_type',
+    headerName: 'Type',
+    width: 160,
+    filter: false,
+  },
+  {
+    field: 'status',
+    headerName: 'Status',
+    width: 140,
+    filter: false,
+  },
 ];
 
-// Applied to every column: the DIAL Admin-style search input (a `contains` text filter) and a
-// hover tooltip surfacing the full value when a cell truncates. The actions column opts out below.
+// Applied to every column: sortable by default, plus a hover tooltip surfacing the full value when
+// a cell truncates. `filter`/`floatingFilter` default to a DIAL Admin-style search input restricted
+// to `equals` — the channel's only text filter operator (no substring search) — but base columns
+// above opt out entirely, and date metadata columns (`buildMetadataColumns`) override to a date
+// range filter instead.
+// Applied to every column: sortable by default, plus a hover tooltip surfacing the full value when
+// a cell truncates. `filter` defaults to a text filter restricted to `equals` — the channel's only
+// text filter operator (no substring search) — accessed via the column's filter menu, not a
+// floating-filter row (there's no accurate icon/label for "equals-only" in that row; revisit if the
+// channel adds a `contains` operator). Base columns above opt out entirely; date metadata columns
+// (`buildMetadataColumns`) override to a date range filter instead.
 const DEFAULT_COL_DEF: ColDef<Document> = {
   resizable: true,
   sortable: true,
   filter: 'agTextColumnFilter',
-  floatingFilter: true,
-  floatingFilterComponent: DocumentsFloatingFilter,
+  filterParams: { filterOptions: ['equals'], maxNumConditions: 1 },
   tooltipValueGetter: (params) => String(params.value ?? ''),
 };
 

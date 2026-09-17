@@ -33,11 +33,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const offset = Number(searchParams.get('offset') ?? DEFAULT_OFFSET);
   const limit = Number(searchParams.get('limit') ?? DEFAULT_LIMIT);
 
-  // Pass any sort/filter params straight through to the channel.
-  const forwardedParams: Record<string, string> = {};
+  // Pass any sort/filter params straight through to the channel. A repeated key (multi-column
+  // `sort=a&sort=b`) is accumulated into a string[] rather than overwritten, so multi-sort survives
+  // the forward — see buildChannelUrl's matching array handling.
+  const forwardedParams: Record<string, string | string[]> = {};
   for (const [key, value] of searchParams.entries()) {
-    if (!RESERVED_LIST_PARAMS.has(key)) {
+    if (RESERVED_LIST_PARAMS.has(key)) {
+      continue;
+    }
+    const existing = forwardedParams[key];
+    if (existing === undefined) {
       forwardedParams[key] = value;
+    } else if (Array.isArray(existing)) {
+      existing.push(value);
+    } else {
+      forwardedParams[key] = [existing, value];
     }
   }
 

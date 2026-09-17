@@ -47,12 +47,21 @@ describe('buildDocumentsListUrl', () => {
   it('appends extra search params (sort/filter) after offset/limit', () => {
     expect(
       buildDocumentsListUrl('my-app', 0, 25, {
-        sort: 'display_name',
-        order: 'asc',
-        display_name: 'report',
+        sort: 'display_name,asc',
+        'display_name[eq]': 'report',
       }),
     ).toBe(
-      'https://core.example.com/v1/deployments/my-app/route/channel/documents?offset=0&limit=25&sort=display_name&order=asc&display_name=report',
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents?offset=0&limit=25&sort=display_name%2Casc&display_name%5Beq%5D=report',
+    );
+  });
+
+  it('appends a repeated key for each entry of an array-valued search param (multi-sort)', () => {
+    expect(
+      buildDocumentsListUrl('my-app', 0, 25, {
+        sort: ['display_name,asc', 'status,desc'],
+      }),
+    ).toBe(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents?offset=0&limit=25&sort=display_name%2Casc&sort=status%2Cdesc',
     );
   });
 
@@ -154,11 +163,31 @@ describe('listDocuments', () => {
       applicationId: 'my-app',
       offset: 0,
       limit: 25,
-      searchParams: { sort: 'display_name', order: 'asc' },
+      searchParams: { 'display_name[eq]': 'report' },
     });
 
     expect(fetch).toHaveBeenCalledWith(
-      'https://core.example.com/v1/deployments/my-app/route/channel/documents?offset=0&limit=25&sort=display_name&order=asc',
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents?offset=0&limit=25&display_name%5Beq%5D=report',
+      { headers: {} },
+    );
+  });
+
+  it('appends a repeated key for an array-valued search param (multi-sort)', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ total_count: 0, offset: 0, limit: 25, results: [] }),
+    });
+
+    await listDocuments({
+      applicationId: 'my-app',
+      offset: 0,
+      limit: 25,
+      searchParams: { sort: ['display_name,asc', 'status,desc'] },
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://core.example.com/v1/deployments/my-app/route/channel/documents?offset=0&limit=25&sort=display_name%2Casc&sort=status%2Cdesc',
       { headers: {} },
     );
   });

@@ -99,11 +99,15 @@ function parseErrorFull(body: unknown): string | undefined {
   return undefined;
 }
 
-/** Builds a DIAL Core deployment channel URL: `/v1/deployments/{id}/route/channel/{segment}`. */
+/**
+ * Builds a DIAL Core deployment channel URL: `/v1/deployments/{id}/route/channel/{segment}`. A
+ * `string[]` value (e.g. multi-column `sort`) is appended as repeated keys — the channel expects
+ * `sort=a&sort=b`, not a comma-joined value — while a plain string replaces any existing value.
+ */
 function buildChannelUrl(
   applicationId: string,
   segment: string,
-  searchParams?: Record<string, string>,
+  searchParams?: Record<string, string | string[]>,
 ): string {
   const baseUrl = process.env.DIAL_API_URL;
   if (!baseUrl) {
@@ -115,7 +119,13 @@ function buildChannelUrl(
     baseUrl,
   );
   for (const [key, value] of Object.entries(searchParams ?? {})) {
-    url.searchParams.set(key, value);
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        url.searchParams.append(key, entry);
+      }
+    } else {
+      url.searchParams.set(key, value);
+    }
   }
   return url.toString();
 }
@@ -124,12 +134,12 @@ export function buildDocumentsListUrl(
   applicationId: string,
   offset: number,
   limit: number,
-  searchParams?: Record<string, string>,
+  searchParams?: Record<string, string | string[]>,
 ): string {
   return buildChannelUrl(applicationId, 'documents', {
     offset: String(offset),
     limit: String(limit),
-    // Server-side sort/filter params (e.g. `sort`, `order`, per-field filters) forwarded verbatim.
+    // Server-side sort/filter params (e.g. `sort`, per-field `field[eq|start|end]`) forwarded verbatim.
     ...searchParams,
   });
 }
@@ -258,8 +268,8 @@ export async function listDocuments(params: {
   applicationId: string;
   offset: number;
   limit: number;
-  /** Extra server-side query params (sort/order/filters), forwarded to the channel. */
-  searchParams?: Record<string, string>;
+  /** Extra server-side query params (sort/filters), forwarded to the channel. */
+  searchParams?: Record<string, string | string[]>;
   accessToken?: string;
 }): Promise<PaginatedDocuments> {
   const { applicationId, offset, limit, searchParams, accessToken } = params;

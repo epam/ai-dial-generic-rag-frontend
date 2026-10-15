@@ -1,4 +1,8 @@
-FROM node:24-alpine AS base
+FROM node:24.21-alpine3.24 AS base
+
+# Upgrade OS packages with known CVEs in the base image (openssl CVE-2026-14456,
+# zlib CVE-2026-85091). zlib is preinstalled, so `apk add` would not update it.
+RUN apk upgrade --no-cache libcrypto3 libssl3 zlib
 
 FROM base AS deps
 WORKDIR /app
@@ -19,6 +23,12 @@ FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+
+# The standalone server starts with node directly and needs no install, so remove
+# npm/npx: project overrides do not patch its bundled dependencies (brace-expansion,
+# ip-address, tar, undici).
+RUN rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

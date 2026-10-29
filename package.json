@@ -1,6 +1,6 @@
 {
   "name": "ai-dial-generic-rag-frontend",
-  "version": "0.0.0",
+  "version": "0.1.0-rc.0",
   "scripts": {
     "dev": "next dev -p 4600",
     "build": "next build",
